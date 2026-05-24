@@ -6,121 +6,152 @@
     <title>SonyaHolic搬运站</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- 引入强大的页面转截图工具 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         * { -webkit-tap-highlight-color: transparent; }
-        /* 切换为 X 白天模式主题样式 */
         .tweet-card { background-color: #ffffff; color: #0f1419; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         .tweet-text { font-size: 15px; line-height: 20px; white-space: pre-wrap; word-wrap: break-word; }
         .quote-box { border: 1px solid #cfd9de; border-radius: 12px; padding: 12px; margin-top: 12px; background-color: #ffffff; }
         
-        /* 智能网格布局 (高度仿真X原生多图排版) */
         .tweet-grid-1 { display: block; border-radius: 16px; overflow: hidden; }
         .tweet-grid-1 img { width: 100%; height: auto; max-height: 400px; object-fit: cover; border: 1px solid #cfd9de; }
-        
         .tweet-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; height: 260px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-2 img { width: 100%; height: 100%; object-fit: cover; }
-        
         .tweet-grid-3 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-3 img:nth-child(1) { grid-column: 1; grid-row: 1 / 3; width: 100%; height: 100%; object-fit: cover; }
         .tweet-grid-3 img:nth-child(2) { grid-column: 2; grid-row: 1; width: 100%; height: 100%; object-fit: cover; }
         .tweet-grid-3 img:nth-child(3) { grid-column: 2; grid-row: 2; width: 100%; height: 100%; object-fit: cover; }
-        
         .tweet-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-4 img { width: 100%; height: 100%; object-fit: cover; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen pb-20">
+<body class="bg-gray-100 min-h-screen">
 
-    <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
-        <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
-        <span class="text-xs bg-gray-800 px-3 py-1 rounded-full font-medium text-green-400 border border-gray-700">云端直连正常</span>
+    <div id="loginPage" class="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-white hidden">
+        <div class="w-full max-w-sm">
+            <div class="text-center mb-10">
+                <i class="fa-brands fa-x-twitter text-6xl mb-4"></i>
+                <h1 class="text-2xl font-bold">请输入通行码</h1>
+                <p class="text-gray-400 mt-2 text-sm">此密码仅需输入一次，浏览器将自动记忆</p>
+            </div>
+            <div class="space-y-4">
+                <input type="password" id="passwordInput" placeholder="输入访问码" class="w-full px-5 py-4 bg-gray-900 border border-gray-700 rounded-2xl text-white focus:outline-none focus:border-white text-center tracking-widest text-lg">
+                <button onclick="login()" id="loginBtn" class="w-full bg-white text-black font-bold py-4 rounded-2xl">进入搬运站</button>
+            </div>
+        </div>
     </div>
 
-    <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
-        
-        <!-- 操作台 -->
-        <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
-            <div>
-                <h2 class="text-sm font-bold text-gray-800 mb-2">输入链接提取内容</h2>
-                <input type="text" id="linkInput" class="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:ring-2 focus:ring-black focus:outline-none" placeholder="粘贴 X 链接...">
-            </div>
-            <button id="extractBtn" onclick="processLink()" class="w-full bg-black active:bg-gray-800 text-white font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2">
-                <i class="fa-solid fa-wand-magic-sparkles" id="btnIcon"></i>
-                <span id="btnText">链接抓取 & 翻译</span>
-            </button>
+    <div id="appPage" class="hidden pb-20">
+        <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
+            <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
+            <button onclick="logout()" class="text-xs bg-gray-800 px-3 py-1 rounded-full font-medium text-gray-300">退出</button>
         </div>
 
-        <!-- 结果展示区 -->
-        <div id="resultArea" class="hidden space-y-5">
-            <h2 class="text-gray-900 font-bold flex items-center gap-2 px-2 text-lg"><i class="fa-solid fa-circle-check text-green-500"></i> 处理完成</h2>
-            
-            <!-- 渲染出的精美排版截图将显示在这里 -->
-            <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative">
-                <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">高仿白底截屏生成</span>
-                    <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按下方图片保存</span>
+        <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
+            <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
+                <div>
+                    <h2 class="text-sm font-bold text-gray-800 mb-2">输入链接提取内容</h2>
+                    <input type="text" id="linkInput" class="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
                 </div>
-                <div class="w-full bg-gray-100 relative group flex justify-center p-2" id="screenshotOutput">
-                    <!-- 最终的图片 <img> 会插在这里 -->
-                </div>
-            </div>
-
-            <!-- 文案与媒体区 -->
-            <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5">
-                <div id="finalText" class="bg-gray-50 p-4 rounded-xl text-gray-900 text-[13px] whitespace-pre-wrap font-sans leading-relaxed border border-gray-300 shadow-inner"></div>
-                <button onclick='copyText()' class="mt-4 w-full bg-black active:bg-gray-800 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-                    <i class="fa-regular fa-copy"></i> 复制排版文案
+                <button id="extractBtn" onclick="processLink()" class="w-full bg-black active:bg-gray-800 text-white font-bold py-3.5 rounded-2xl transition-all">
+                    <i class="fa-solid fa-wand-magic-sparkles" id="btnIcon"></i>
+                    <span id="btnText">链接抓取 & 翻译</span>
                 </button>
+            </div>
 
-                <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
-                    <p class="text-xs font-bold text-gray-900 mb-3"><i class="fa-solid fa-download"></i> 高清原视频/原图提取</p>
-                    <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
+            <div id="resultArea" class="hidden space-y-5">
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative">
+                    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                        <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md">排版截屏生成</span>
+                        <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按保存图片</span>
+                    </div>
+                    <div class="w-full bg-gray-100 flex justify-center p-2" id="screenshotOutput"></div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5">
+                    <div id="finalText" class="bg-gray-50 p-4 rounded-xl text-gray-900 text-[13px] whitespace-pre-wrap font-sans leading-relaxed border border-gray-300"></div>
+                    <button onclick='copyText()' class="mt-4 w-full bg-black active:bg-gray-800 text-white font-bold py-3.5 rounded-xl">
+                        <i class="fa-regular fa-copy"></i> 一键复制文案
+                    </button>
+
+                    <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
+                        <p class="text-xs font-bold text-gray-900 mb-3"><i class="fa-solid fa-download"></i> 高清原视频/原图提取</p>
+                        <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 🌟 隐藏的推特渲染画板 (用于被 html2canvas 拍照) -->
     <div style="position: absolute; left: -9999px; top: 0;">
-        <div id="renderTemplate" class="tweet-card w-[420px] p-4 bg-white">
-            <!-- 作者信息 -->
-            <div class="flex items-center gap-3 mb-3">
+        <div id="renderTemplate" class="tweet-card w-[420px] p-4 bg-white relative overflow-hidden">
+            
+            <div id="renderParent" class="hidden relative pb-3">
+                <div class="absolute left-6 top-[52px] bottom-0 w-[2px] bg-[#cfd9de]"></div>
+                <div class="flex gap-3 mb-1">
+                    <img id="parentAvatar" class="w-12 h-12 rounded-full object-cover relative z-10 bg-white">
+                    <div>
+                        <div class="font-bold text-[15px] flex items-center gap-1 text-[#0f1419]"><span id="parentName"></span></div>
+                        <div class="text-[#536471] text-[15px]" id="parentHandle"></div>
+                    </div>
+                </div>
+                <div id="parentText" class="tweet-text mb-3 text-[#0f1419] ml-[60px]"></div>
+            </div>
+
+            <div class="flex items-center gap-3 mb-3 relative z-10 bg-white">
                 <img id="renderAvatar" class="w-12 h-12 rounded-full object-cover">
                 <div>
                     <div class="font-bold text-[15px] flex items-center gap-1 text-[#0f1419]"><span id="renderName"></span> <i class="fa-solid fa-circle-check text-blue-400 text-xs"></i></div>
                     <div class="text-[#536471] text-[15px]" id="renderHandle"></div>
                 </div>
             </div>
-            <!-- 正文 -->
+
             <div id="renderText" class="tweet-text mb-3 text-[#0f1419]"></div>
             
-            <!-- 多图智能网格容器 -->
             <div id="renderImages" class="mb-3 hidden"></div>
 
-            <!-- 引用推文 (Quote) -->
-            <div id="renderQuote" class="quote-box hidden">
-                <div class="flex items-center gap-2 mb-1">
-                    <img id="quoteAvatar" class="w-5 h-5 rounded-full object-cover">
-                    <span class="font-bold text-[13px] text-[#0f1419]" id="quoteName"></span>
-                    <span class="text-[#536471] text-[13px]" id="quoteHandle"></span>
-                </div>
-                <div id="quoteText" class="tweet-text text-[14px] text-[#0f1419]"></div>
-            </div>
+            <div id="renderQuote" class="quote-box hidden"></div>
 
-            <!-- 时间戳 -->
             <div class="text-[#536471] text-[15px] mt-3 pb-3 border-b border-[#cfd9de]">
-                <span id="renderTime"></span> · <span class="text-[#0f1419] font-bold">12.5K</span> Views
+                <span id="renderTime"></span>
             </div>
         </div>
     </div>
 
-    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 text-sm font-medium whitespace-nowrap">
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 text-sm whitespace-nowrap">
         <i class="fa-solid fa-circle-check text-green-400"></i> <span id="toastText">成功</span>
     </div>
 
     <script>
+        const API_BASE = window.location.origin; 
+
+        // --- 无感密码缓存体系 ---
+        window.onload = () => {
+            if (localStorage.getItem('bot_pwd')) {
+                showApp();
+            } else {
+                showLogin();
+            }
+        };
+
+        function showLogin() { document.getElementById('loginPage').classList.remove('hidden'); document.getElementById('appPage').classList.add('hidden'); }
+        function showApp() { document.getElementById('loginPage').classList.add('hidden'); document.getElementById('appPage').classList.remove('hidden'); }
+        function logout() { localStorage.removeItem('bot_pwd'); document.getElementById('passwordInput').value = ''; showLogin(); }
+
+        function login() {
+            const pwd = document.getElementById('passwordInput').value.trim();
+            if(!pwd) return;
+            localStorage.setItem('bot_pwd', pwd);
+            showApp();
+        }
+
+        function getAuthHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'x-bot-password': localStorage.getItem('bot_pwd') || ''
+            };
+        }
+
         function showToast(msg) {
             const toast = document.getElementById('toast');
             document.getElementById('toastText').innerText = msg;
@@ -128,62 +159,63 @@
             setTimeout(() => { toast.style.opacity = '0'; }, 2500);
         }
 
-        function formatXTime(timestamp) {
+        // 标准化 X 时间戳：11:02 · 2026/5/23 · 523 次查看
+        function formatXTime(timestamp, views) {
             const date = new Date(timestamp);
-            const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            return `${timeStr} · ${dateStr}`;
+            const hh = date.getHours().toString().padStart(2, '0');
+            const mm = date.getMinutes().toString().padStart(2, '0');
+            const yyyy = date.getFullYear();
+            const M = date.getMonth() + 1;
+            const d = date.getDate();
+            const viewsStr = views > 0 ? ` · ${views} 次查看` : '';
+            return `${hh}:${mm} · ${yyyy}/${M}/${d}${viewsStr}`;
         }
 
-        // 完整修复的抓取功能
         async function processLink() {
             const link = document.getElementById('linkInput').value.trim();
             if (!link) return showToast('请先粘贴链接');
             
             const btn = document.getElementById('extractBtn');
-            const originalBtnHtml = btn.innerHTML;
-            btn.disabled = true; 
-            btn.classList.replace('bg-black', 'bg-gray-400');
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span class="ml-2">抓取翻译中...</span>';
+            btn.disabled = true; btn.classList.replace('bg-black', 'bg-gray-400');
+            document.getElementById('btnIcon').className = "fa-solid fa-spinner fa-spin";
+            document.getElementById('btnText').innerText = "链接抓取中...";
             document.getElementById('resultArea').classList.add('hidden');
             
             try {
                 const res = await fetch('/api/extract', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({ url: link })
                 });
+
+                if (res.status === 401) {
+                    showToast('密码错误或已变更，请重新验证');
+                    logout();
+                    return;
+                }
+
                 const data = await res.json();
-                
                 if (res.ok && data.success) {
                     await buildUIAndScreenshot(data.tweet);
-                    showToast('提取并生成截图成功！');
+                    showToast('排版截图生成成功！');
                     document.getElementById('resultArea').classList.remove('hidden');
                 } else {
                     showToast(data.error || '提取失败');
                 }
-            } catch (e) { 
-                showToast('网络请求失败，请检查链接或稍后重试'); 
-            }
+            } catch (e) { showToast('请求失败'); }
             
-            btn.disabled = false; 
-            btn.classList.replace('bg-gray-400', 'bg-black');
-            btn.innerHTML = originalBtnHtml;
+            btn.disabled = false; btn.classList.replace('bg-gray-400', 'bg-black');
+            document.getElementById('btnIcon').className = "fa-solid fa-wand-magic-sparkles";
+            document.getElementById('btnText').innerText = "链接抓取 & 翻译";
         }
 
         async function buildUIAndScreenshot(tweet) {
-            // 清空旧头像缓存
             document.getElementById('renderAvatar').src = '';
-            if (document.getElementById('quoteAvatar')) {
-                document.getElementById('quoteAvatar').src = '';
-            }
+            document.getElementById('parentAvatar').src = '';
 
-            // 1. 填充排版文案
-            let finalTextStr = tweet.finalText;
-            finalTextStr = finalTextStr.replace(/转发内容：/g, '\n转发内容：');
-            document.getElementById('finalText').innerText = finalTextStr;
+            document.getElementById('finalText').innerText = tweet.finalText;
 
-            // 2. 填充附件媒体下载区
+            // 填充附件
             const mediaGrid = document.getElementById('mediaGrid');
             const mediaArea = document.getElementById('mediaArea');
             mediaGrid.innerHTML = '';
@@ -191,94 +223,70 @@
                 mediaArea.classList.remove('hidden');
                 tweet.rawMediaUrls.forEach(media => {
                     if (media.type === 'video') {
-                        mediaGrid.innerHTML += `
-                        <a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200">
-                            <img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60">
-                            <div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">原视频</span></div>
-                        </a>`;
+                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">原视频</span></div></a>`;
                     } else {
-                        mediaGrid.innerHTML += `
-                        <a href="${media.url}" target="_blank" class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200">
-                            <img src="${media.url}" class="w-full h-full object-cover"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded"><i class="fa-solid fa-download"></i></div>
-                        </a>`;
+                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded"><i class="fa-solid fa-download"></i></div></a>`;
                     }
                 });
-            } else {
-                mediaArea.classList.add('hidden');
-            }
+            } else { mediaArea.classList.add('hidden'); }
 
-            // 3. 准备生成截图的画板内容
+            // 渲染主贴
             document.getElementById('renderAvatar').src = tweet.avatarBase64 || '';
             document.getElementById('renderName').innerText = tweet.authorName;
             document.getElementById('renderHandle').innerText = tweet.authorHandle;
             document.getElementById('renderText').innerText = tweet.originalText;
-            document.getElementById('renderTime').innerText = formatXTime(tweet.timestamp);
+            document.getElementById('renderTime').innerHTML = `<span class="text-[#0f1419]">${formatXTime(tweet.timestamp, tweet.viewsCount)}</span>`;
 
-            // 画板里的图片智能网格
+            // 渲染原贴 (回复链连线 UI)
+            const parentBox = document.getElementById('renderParent');
+            if (tweet.isReply && tweet.parentInfo) {
+                parentBox.classList.remove('hidden');
+                document.getElementById('parentAvatar').src = tweet.parentInfo.avatarBase64 || '';
+                document.getElementById('parentName').innerText = tweet.parentInfo.name;
+                document.getElementById('parentHandle').innerText = tweet.parentInfo.handle;
+                document.getElementById('parentText').innerText = tweet.parentInfo.text;
+            } else {
+                parentBox.classList.add('hidden');
+            }
+
+            // 渲染多图
             const imgContainer = document.getElementById('renderImages');
             const imgCount = tweet.imagesBase64.length;
-            
             if (imgCount > 0) {
                 imgContainer.classList.remove('hidden');
                 let gridClass = 'tweet-grid-1';
                 if (imgCount === 2) gridClass = 'tweet-grid-2';
                 else if (imgCount === 3) gridClass = 'tweet-grid-3';
                 else if (imgCount >= 4) gridClass = 'tweet-grid-4';
-                
                 imgContainer.className = `mb-3 ${gridClass}`;
-                imgContainer.innerHTML = '';
-                
-                tweet.imagesBase64.slice(0, 4).forEach(b64 => {
-                    imgContainer.innerHTML += `<img src="${b64}" />`;
-                });
+                imgContainer.innerHTML = tweet.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('');
             } else {
                 imgContainer.classList.add('hidden');
             }
 
-            // 画板里的 Quote
+            // 渲染 Quote
             const quoteBox = document.getElementById('renderQuote');
             if (tweet.quoteInfo) {
                 quoteBox.classList.remove('hidden');
-                // 使用浅灰色字体 #536471 匹配白天模式
-                document.getElementById('renderQuote').innerHTML = `<div class="mb-2 text-[#536471]">转发内容：</div>` + `
+                quoteBox.innerHTML = `
                 <div class="flex items-center gap-2 mb-1">
-                    <img id="quoteAvatar" class="w-5 h-5 rounded-full object-cover" src="${tweet.quoteInfo.avatar || ''}">
-                    <span class="font-bold text-[13px] text-[#0f1419]" id="quoteName">${tweet.quoteInfo.name}</span>
-                    <span class="text-[#536471] text-[13px]" id="quoteHandle">${tweet.quoteInfo.handle}</span>
+                    <img class="w-5 h-5 rounded-full object-cover" src="${tweet.quoteInfo.avatar || ''}">
+                    <span class="font-bold text-[13px] text-[#0f1419]">${tweet.quoteInfo.name}</span>
+                    <span class="text-[#536471] text-[13px]">${tweet.quoteInfo.handle}</span>
                 </div>
-                <div id="quoteText" class="tweet-text text-[14px] text-[#0f1419]">${tweet.quoteInfo.text}</div>`;
-            } else {
-                quoteBox.classList.add('hidden');
-                document.getElementById('renderQuote').innerHTML = `
-                <div class="flex items-center gap-2 mb-1">
-                    <img id="quoteAvatar" class="w-5 h-5 rounded-full object-cover">
-                    <span class="font-bold text-[13px] text-[#0f1419]" id="quoteName"></span>
-                    <span class="text-[#536471] text-[13px]" id="quoteHandle"></span>
-                </div>
-                <div id="quoteText" class="tweet-text text-[14px] text-[#0f1419]"></div>`;
-            }
+                <div class="tweet-text text-[14px] text-[#0f1419]">${tweet.quoteInfo.text}</div>`;
+            } else { quoteBox.classList.add('hidden'); }
 
-            // 强制等待 300 毫秒，让头像完全渲染加载
             await new Promise(resolve => setTimeout(resolve, 300));
 
-            // 4. 调用 html2canvas 拍照 (背景颜色改为白色 #ffffff)
             const target = document.getElementById('renderTemplate');
-            const canvas = await html2canvas(target, { 
-                scale: 2, 
-                useCORS: true, 
-                backgroundColor: '#ffffff' 
-            });
-            
-            const finalImgUrl = canvas.toDataURL("image/png");
-            
-            // 5. 显示生成的图片
-            document.getElementById('screenshotOutput').innerHTML = `<img src="${finalImgUrl}" class="w-full h-auto rounded-xl shadow-lg border border-gray-200 pointer-events-auto" style="-webkit-touch-callout: default;">`;
+            const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            document.getElementById('screenshotOutput').innerHTML = `<img src="${canvas.toDataURL("image/png")}" class="w-full h-auto rounded-xl shadow border border-gray-200 pointer-events-auto" style="-webkit-touch-callout: default;">`;
         }
 
         function copyText() {
-            const text = document.getElementById('finalText').innerText;
             const textArea = document.createElement("textarea");
-            textArea.value = text;
+            textArea.value = document.getElementById('finalText').innerText;
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
