@@ -45,7 +45,6 @@ export default async function handler(req, res) {
             originalText = originalText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
         }
         
-        // 【关键修复 1】：防崩溃补丁。如果推文只有图片或视频，清洗 @ 后文字为空，必须补齐占位符，否则 Gemini 直接宕机。
         if (!originalText || originalText.trim() === '') {
             originalText = "[仅图片/视频，无文字]";
         }
@@ -125,17 +124,21 @@ export default async function handler(req, res) {
         const avatarBase64 = await fetchImageAsBase64(avatarUrl);
 
         const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
-        if (!GEMINI_API_KEY) return res.status(500).json({ error: '未配置 Gemini API Key' });
+        if (!GEMINI_API_KEY) {
+            // 将错误直接打印在前端
+            throw new Error("云端 Vercel 尚未配置 GEMINI_API_KEY，或者拼写错误！");
+        }
 
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        
+        // 【核心修复】：降低安全审查级别以适应免费 API 规则
         const safetySettings = [
-            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
         ];
         
-        // 【关键修复 2】：使用极其稳定且存在的 gemini-1.5-flash 模型
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
         
         const baseRule = `
@@ -145,8 +148,8 @@ export default async function handler(req, res) {
 3. 去除标签：**请忽略并删除推文原文中的所有带 # 号的话题标签（Hashtags）**，不要保留。
 4. 去除趋势关键词：**请智能识别并删除类似于 X 趋势打榜的关键词（特征通常为：全大写英文字母组成的短句、单独占一行、经常出现在标签附近，例如 "SONYA BORN TO BE A STAR"）。不要翻译也不要保留这些趋势词。**
 5. 保留表情：请务必在译文中严格保留推文原文里的所有表情符号（emoji），按照它们在原文中的顺序展示。
-7. 最终输出只需保留翻译后的中文正文以及原有的表情符号。绝不要输出任何解释说明。
-5. 必须强行按照要求的排版格式输出。`;
+6. 最终输出只需保留翻译后的中文正文以及原有的表情符号。绝不要输出任何解释说明。
+7. 必须强行按照要求的排版格式输出。`
 
         let prompt = "";
         if (isReply) {
@@ -171,7 +174,8 @@ export default async function handler(req, res) {
             } catch (e) {
                 retries--;
                 if (retries === 0) {
-                    translatedResult = "（AI 翻译暂时失败，请重试）";
+                    // 【核心修复】：彻底捕获并暴露真实的报错原因
+                    translatedResult = `（AI 翻译崩溃，谷歌返回错误原因：${e.message}）`;
                     console.error("Gemini API Error:", e);
                 }
                 else await new Promise(resolve => setTimeout(resolve, 1500));
@@ -215,6 +219,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error("Server Error:", error);
-        res.status(500).json({ error: '内部错误' });
+        res.status(500).json({ error: error.message || '内部错误' });
     }
 }
