@@ -121,7 +121,7 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池 (汇总)</p>
-                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡点击图片或视频进入下载。</p>
+                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 点击图片或视频进入下载。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
@@ -382,10 +382,6 @@
                 needSuffix: document.getElementById('optSuffix').checked
             };
 
-            if (!options.needScreenshot && !options.needPrefix && !options.needTranslation && !options.needSuffix) {
-                return showToast('至少需要勾选一项提取功能哦！');
-            }
-
             const btn = document.getElementById('extractBtn');
             btn.disabled = true; btn.classList.replace('bg-black', 'bg-gray-400');
             document.getElementById('btnIcon').className = "fa-solid fa-spinner fa-spin";
@@ -408,7 +404,7 @@
                 const data = await res.json();
                 if (res.ok && data.success) {
                     await renderResults(data.tweets, data.prefix, data.suffix, options);
-                    showToast('✅ 抓取排版成功！');
+                    showToast('✅ 抓取成功！');
                     document.getElementById('resultArea').classList.remove('hidden');
                 } else {
                     showToast(data.error || '提取失败');
