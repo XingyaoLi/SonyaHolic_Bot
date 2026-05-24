@@ -41,9 +41,13 @@ export default async function handler(req, res) {
         const timestamp = tweetData.date_epoch * 1000;
         const viewsCount = tweetData.views || tweetData.likes || 0; 
 
-        // 【细节优化】如果是回复推文，彻底切除最前方的 @提及id 字符串
         if (tweetData.in_reply_to_status_id_str || (tweetData.conversationID && tweetData.conversationID !== tweetId)) {
             originalText = originalText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
+        }
+        
+        // 【关键修复 1】：防崩溃补丁。如果推文只有图片或视频，清洗 @ 后文字为空，必须补齐占位符，否则 Gemini 直接宕机。
+        if (!originalText || originalText.trim() === '') {
+            originalText = "[仅图片/视频，无文字]";
         }
         
         const extractMediaParams = async (mediaArray) => {
@@ -76,8 +80,9 @@ export default async function handler(req, res) {
                     const pData = await parentRes.json();
                     isReply = true;
                     parentText = pData.text || '';
-                    // 同样清理父级推文可能带有的 @提及id
                     parentText = parentText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
+                    
+                    if (!parentText || parentText.trim() === '') parentText = "[仅图片/视频，无文字]";
 
                     const pMedia = await extractMediaParams(pData.media_extended || []);
                     
@@ -100,13 +105,16 @@ export default async function handler(req, res) {
                 const qrtRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${qrtId}`);
                 if (qrtRes.ok) {
                     const qrtData = await qrtRes.json();
+                    let qText = qrtData.text || '';
+                    if (!qText || qText.trim() === '') qText = "[仅图片/视频，无文字]";
+
                     const qMedia = await extractMediaParams(qrtData.media_extended || []);
 
                     quoteInfo = {
                         name: qrtData.user_name,
                         handle: `@${qrtData.user_screen_name}`,
                         avatar: await fetchImageAsBase64(qrtData.user_profile_image_url),
-                        text: qrtData.text || '',
+                        text: qText,
                         imagesBase64: qMedia.b64s,
                         rawMediaUrls: qMedia.rawUrls
                     };
@@ -126,7 +134,9 @@ export default async function handler(req, res) {
             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ];
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", safetySettings });
+        
+        // 【关键修复 2】：使用极其稳定且存在的 gemini-1.5-flash 模型
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
         
         const baseRule = `
 规则：
@@ -134,7 +144,7 @@ export default async function handler(req, res) {
 2. 完全忽略并删除所有带 # 号的 Hashtags。
 3. 智能识别并删除全大写趋势打榜短句。
 4. 务必严格保留原文里的所有表情符号(emoji)。
-5. 即使内容极短（例如只有一句话或几个表情），也必须强行按照要求的排版格式输出，绝不能报错。不要附加任何解释说明。`;
+5. 必须强行按照要求的排版格式输出。`;
 
         let prompt = "";
         if (isReply) {
@@ -158,7 +168,10 @@ export default async function handler(req, res) {
                 break;
             } catch (e) {
                 retries--;
-                if (retries === 0) translatedResult = "（AI 翻译暂时失败，请重试）";
+                if (retries === 0) {
+                    translatedResult = "（AI 翻译暂时失败，请重试）";
+                    console.error("Gemini API Error:", e);
+                }
                 else await new Promise(resolve => setTimeout(resolve, 1500));
             }
         }
@@ -183,7 +196,7 @@ export default async function handler(req, res) {
         res.status(200).json({
             success: true,
             tweet: {
-                originalText, // 已经洗掉了开头的 @提及
+                originalText, 
                 finalText: finalText,
                 authorName,
                 authorHandle,
@@ -199,6 +212,7 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
+        console.error("Server Error:", error);
         res.status(500).json({ error: '内部错误' });
     }
 }
