@@ -144,7 +144,7 @@
             const originalBtnHtml = btn.innerHTML;
             btn.disabled = true; 
             btn.classList.replace('bg-black', 'bg-gray-400');
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span class="ml-2">极速抓取翻译中...</span>';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span class="ml-2">抓取翻译中...</span>';
             document.getElementById('resultArea').classList.add('hidden');
             
             try {
@@ -174,6 +174,12 @@
         }
 
         async function buildUIAndScreenshot(tweet) {
+            // 在开始新一轮渲染前，先清空上一次的残余头像，防止视觉残留
+            document.getElementById('renderAvatar').src = '';
+            if (document.getElementById('quoteAvatar')) {
+                document.getElementById('quoteAvatar').src = '';
+            }
+
             // 1. 填充排版文案，并确保转发内容和前面有明显的空行
             let finalTextStr = tweet.finalText;
             // 智能增加空行：如果在最终文案中找到了"转发内容："，强制在其前面多加一个换行符
@@ -244,6 +250,10 @@
             } else {
                 quoteBox.classList.add('hidden');
             }
+
+            // 【关键修复：解决新头像串台问题】
+            // 强制等待 300 毫秒，让浏览器有充足的时间把新头像渲染到屏幕上，然后再按快门截图
+            await new Promise(resolve => setTimeout(resolve, 300));
 
             // 4. 调用 html2canvas 拍照！
             const target = document.getElementById('renderTemplate');
