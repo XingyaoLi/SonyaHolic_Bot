@@ -1,0 +1,10 @@
+{
+  "name": "sonya-cloud-bot",
+  "version": "1.0.0",
+  "description": "Cloud based X translator and screenshot generator",
+  "main": "index.js",
+  "dependencies": {
+    "@google/generative-ai": "^0.11.0",
+    "node-fetch": "^2.7.0"
+  }
+}
