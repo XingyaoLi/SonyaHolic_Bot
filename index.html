@@ -32,11 +32,10 @@
             <div class="text-center mb-10">
                 <i class="fa-brands fa-x-twitter text-6xl mb-4"></i>
                 <h1 class="text-2xl font-bold">请输入通行码</h1>
-                <p class="text-gray-400 mt-2 text-sm">此密码仅需输入一次，浏览器将自动记忆</p>
             </div>
             <div class="space-y-4">
-                <input type="password" id="passwordInput" placeholder="输入访问码" class="w-full px-5 py-4 bg-gray-900 border border-gray-700 rounded-2xl text-white focus:outline-none focus:border-white text-center tracking-widest text-lg">
-                <button onclick="login()" id="loginBtn" class="w-full bg-white text-black font-bold py-4 rounded-2xl">进入搬运站</button>
+                <input type="password" id="passwordInput" placeholder="请输入通行码" class="w-full px-5 py-4 bg-gray-900 border border-gray-700 rounded-2xl text-white text-center tracking-widest text-lg focus:outline-none">
+                <button onclick="login()" class="w-full bg-white text-black font-bold py-4 rounded-2xl">进入搬运站</button>
             </div>
         </div>
     </div>
@@ -44,16 +43,13 @@
     <div id="appPage" class="hidden pb-20">
         <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
             <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
-            <button onclick="logout()" class="text-xs bg-gray-800 px-3 py-1 rounded-full font-medium text-gray-300">退出</button>
+            <button onclick="logout()" class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-300">切换通行码</button>
         </div>
 
         <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
-                <div>
-                    <h2 class="text-sm font-bold text-gray-800 mb-2">输入链接提取内容</h2>
-                    <input type="text" id="linkInput" class="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
-                </div>
-                <button id="extractBtn" onclick="processLink()" class="w-full bg-black active:bg-gray-800 text-white font-bold py-3.5 rounded-2xl transition-all">
+                <input type="text" id="linkInput" class="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
+                <button id="extractBtn" onclick="processLink()" class="w-full bg-black text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2">
                     <i class="fa-solid fa-wand-magic-sparkles" id="btnIcon"></i>
                     <span id="btnText">链接抓取 & 翻译</span>
                 </button>
@@ -62,20 +58,20 @@
             <div id="resultArea" class="hidden space-y-5">
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative">
                     <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md">排版截屏生成</span>
+                        <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">排版截屏生成</span>
                         <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按保存图片</span>
                     </div>
-                    <div class="w-full bg-gray-100 flex justify-center p-2" id="screenshotOutput"></div>
+                    <div class="w-full bg-white flex justify-center p-2" id="screenshotOutput"></div>
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5">
-                    <div id="finalText" class="bg-gray-50 p-4 rounded-xl text-gray-900 text-[13px] whitespace-pre-wrap font-sans leading-relaxed border border-gray-300"></div>
-                    <button onclick='copyText()' class="mt-4 w-full bg-black active:bg-gray-800 text-white font-bold py-3.5 rounded-xl">
-                        <i class="fa-regular fa-copy"></i> 一键复制文案
+                    <div id="finalText" class="bg-gray-50 p-4 rounded-xl text-gray-900 text-[13px] whitespace-pre-wrap font-sans leading-relaxed border border-gray-300 shadow-inner"></div>
+                    <button onclick='copyText()' class="mt-4 w-full bg-black text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2">
+                        <i class="fa-regular fa-copy"></i> 复制排版文案
                     </button>
 
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
-                        <p class="text-xs font-bold text-gray-900 mb-3"><i class="fa-solid fa-download"></i> 高清原视频/原图提取</p>
+                        <p class="text-xs font-bold text-gray-900 mb-3"><i class="fa-solid fa-download"></i> 主贴、原贴及引用的所有附件</p>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
                 </div>
@@ -87,7 +83,7 @@
         <div id="renderTemplate" class="tweet-card w-[420px] p-4 bg-white relative overflow-hidden">
             
             <div id="renderParent" class="hidden relative pb-3">
-                <div class="absolute left-6 top-[52px] bottom-0 w-[2px] bg-[#cfd9de]"></div>
+                <div class="absolute left-[23px] top-[52px] bottom-0 w-[2px] bg-[#cfd9de]"></div>
                 <div class="flex gap-3 mb-1">
                     <img id="parentAvatar" class="w-12 h-12 rounded-full object-cover relative z-10 bg-white">
                     <div>
@@ -96,6 +92,7 @@
                     </div>
                 </div>
                 <div id="parentText" class="tweet-text mb-3 text-[#0f1419] ml-[60px]"></div>
+                <div id="parentImages" class="ml-[60px] mb-3 hidden"></div>
             </div>
 
             <div class="flex items-center gap-3 mb-3 relative z-10 bg-white">
@@ -105,9 +102,7 @@
                     <div class="text-[#536471] text-[15px]" id="renderHandle"></div>
                 </div>
             </div>
-
             <div id="renderText" class="tweet-text mb-3 text-[#0f1419]"></div>
-            
             <div id="renderImages" class="mb-3 hidden"></div>
 
             <div id="renderQuote" class="quote-box hidden"></div>
@@ -123,26 +118,27 @@
     </div>
 
     <script>
-        const API_BASE = window.location.origin; 
-
-        // --- 无感密码缓存体系 ---
         window.onload = () => {
             if (localStorage.getItem('bot_pwd')) {
-                showApp();
+                document.getElementById('loginPage').classList.add('hidden');
+                document.getElementById('appPage').classList.remove('hidden');
             } else {
-                showLogin();
+                document.getElementById('loginPage').classList.remove('hidden');
+                document.getElementById('appPage').classList.add('hidden');
             }
         };
-
-        function showLogin() { document.getElementById('loginPage').classList.remove('hidden'); document.getElementById('appPage').classList.add('hidden'); }
-        function showApp() { document.getElementById('loginPage').classList.add('hidden'); document.getElementById('appPage').classList.remove('hidden'); }
-        function logout() { localStorage.removeItem('bot_pwd'); document.getElementById('passwordInput').value = ''; showLogin(); }
 
         function login() {
             const pwd = document.getElementById('passwordInput').value.trim();
             if(!pwd) return;
             localStorage.setItem('bot_pwd', pwd);
-            showApp();
+            window.onload();
+        }
+
+        function logout() {
+            localStorage.removeItem('bot_pwd');
+            document.getElementById('passwordInput').value = '';
+            window.onload();
         }
 
         function getAuthHeaders() {
@@ -159,16 +155,40 @@
             setTimeout(() => { toast.style.opacity = '0'; }, 2500);
         }
 
-        // 标准化 X 时间戳：11:02 · 2026/5/23 · 523 次查看
-        function formatXTime(timestamp, views) {
+        function formatXText(text) {
+            if (!text) return '';
+            let safeText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return safeText.replace(/([#@][^\s\n]+)/g, '<span class="text-[#1d9bf0]">$1</span>');
+        }
+
+        function formatGMT8XTime(timestamp, views) {
             const date = new Date(timestamp);
-            const hh = date.getHours().toString().padStart(2, '0');
-            const mm = date.getMinutes().toString().padStart(2, '0');
-            const yyyy = date.getFullYear();
-            const M = date.getMonth() + 1;
-            const d = date.getDate();
-            const viewsStr = views > 0 ? ` · ${views} 次查看` : '';
-            return `${hh}:${mm} · ${yyyy}/${M}/${d}${viewsStr}`;
+            const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+            const gmt8Date = new Date(utc + (3600000 * 8));
+
+            const hh = gmt8Date.getHours().toString().padStart(2, '0');
+            const mm = gmt8Date.getMinutes().toString().padStart(2, '0');
+            const yyyy = gmt8Date.getFullYear();
+            const M = gmt8Date.getMonth() + 1;
+            const d = gmt8Date.getDate();
+
+            let viewsStr = '';
+            if (views > 0) {
+                if (views >= 10000) {
+                    let w = (views / 10000).toFixed(1);
+                    viewsStr = ` · ${w.replace('.0', '')}万 次查看`;
+                } else {
+                    viewsStr = ` · ${views} 次查看`;
+                }
+            }
+            return `${hh}:${mm} · ${yyyy}/${M}/${d}<span class="text-[#0f1419] font-bold">${viewsStr}</span>`;
+        }
+
+        function buildGridClass(count) {
+            if (count === 2) return 'tweet-grid-2';
+            if (count === 3) return 'tweet-grid-3';
+            if (count >= 4) return 'tweet-grid-4';
+            return 'tweet-grid-1';
         }
 
         async function processLink() {
@@ -178,7 +198,7 @@
             const btn = document.getElementById('extractBtn');
             btn.disabled = true; btn.classList.replace('bg-black', 'bg-gray-400');
             document.getElementById('btnIcon').className = "fa-solid fa-spinner fa-spin";
-            document.getElementById('btnText').innerText = "链接抓取中...";
+            document.getElementById('btnText').innerText = "链接提取中...";
             document.getElementById('resultArea').classList.add('hidden');
             
             try {
@@ -189,7 +209,7 @@
                 });
 
                 if (res.status === 401) {
-                    showToast('密码错误或已变更，请重新验证');
+                    showToast('通行码错误，请重新验证');
                     logout();
                     return;
                 }
@@ -197,7 +217,7 @@
                 const data = await res.json();
                 if (res.ok && data.success) {
                     await buildUIAndScreenshot(data.tweet);
-                    showToast('排版截图生成成功！');
+                    showToast('排版生成成功！');
                     document.getElementById('resultArea').classList.remove('hidden');
                 } else {
                     showToast(data.error || '提取失败');
@@ -212,16 +232,19 @@
         async function buildUIAndScreenshot(tweet) {
             document.getElementById('renderAvatar').src = '';
             document.getElementById('parentAvatar').src = '';
-
             document.getElementById('finalText').innerText = tweet.finalText;
 
-            // 填充附件
             const mediaGrid = document.getElementById('mediaGrid');
             const mediaArea = document.getElementById('mediaArea');
             mediaGrid.innerHTML = '';
-            if (tweet.rawMediaUrls && tweet.rawMediaUrls.length > 0) {
+            
+            let allMedia = [...(tweet.rawMediaUrls || [])];
+            if (tweet.parentInfo && tweet.parentInfo.rawMediaUrls) allMedia.push(...tweet.parentInfo.rawMediaUrls);
+            if (tweet.quoteInfo && tweet.quoteInfo.rawMediaUrls) allMedia.push(...tweet.quoteInfo.rawMediaUrls);
+
+            if (allMedia.length > 0) {
                 mediaArea.classList.remove('hidden');
-                tweet.rawMediaUrls.forEach(media => {
+                allMedia.forEach(media => {
                     if (media.type === 'video') {
                         mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">原视频</span></div></a>`;
                     } else {
@@ -230,58 +253,62 @@
                 });
             } else { mediaArea.classList.add('hidden'); }
 
-            // 渲染主贴
             document.getElementById('renderAvatar').src = tweet.avatarBase64 || '';
             document.getElementById('renderName').innerText = tweet.authorName;
             document.getElementById('renderHandle').innerText = tweet.authorHandle;
-            document.getElementById('renderText').innerText = tweet.originalText;
-            document.getElementById('renderTime').innerHTML = `<span class="text-[#0f1419]">${formatXTime(tweet.timestamp, tweet.viewsCount)}</span>`;
+            document.getElementById('renderText').innerHTML = formatXText(tweet.originalText);
+            document.getElementById('renderTime').innerHTML = formatGMT8XTime(tweet.timestamp, tweet.viewsCount);
 
-            // 渲染原贴 (回复链连线 UI)
             const parentBox = document.getElementById('renderParent');
             if (tweet.isReply && tweet.parentInfo) {
                 parentBox.classList.remove('hidden');
                 document.getElementById('parentAvatar').src = tweet.parentInfo.avatarBase64 || '';
                 document.getElementById('parentName').innerText = tweet.parentInfo.name;
                 document.getElementById('parentHandle').innerText = tweet.parentInfo.handle;
-                document.getElementById('parentText').innerText = tweet.parentInfo.text;
-            } else {
-                parentBox.classList.add('hidden');
-            }
+                document.getElementById('parentText').innerHTML = formatXText(tweet.parentInfo.text);
+                
+                const pImgContainer = document.getElementById('parentImages');
+                const pImgCount = tweet.parentInfo.imagesBase64 ? tweet.parentInfo.imagesBase64.length : 0;
+                if (pImgCount > 0) {
+                    pImgContainer.classList.remove('hidden');
+                    pImgContainer.className = `ml-[60px] mb-3 ${buildGridClass(pImgCount)}`;
+                    pImgContainer.innerHTML = tweet.parentInfo.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('');
+                } else { pImgContainer.classList.add('hidden'); }
+            } else { parentBox.classList.add('hidden'); }
 
-            // 渲染多图
             const imgContainer = document.getElementById('renderImages');
             const imgCount = tweet.imagesBase64.length;
             if (imgCount > 0) {
                 imgContainer.classList.remove('hidden');
-                let gridClass = 'tweet-grid-1';
-                if (imgCount === 2) gridClass = 'tweet-grid-2';
-                else if (imgCount === 3) gridClass = 'tweet-grid-3';
-                else if (imgCount >= 4) gridClass = 'tweet-grid-4';
-                imgContainer.className = `mb-3 ${gridClass}`;
+                imgContainer.className = `mb-3 ${buildGridClass(imgCount)}`;
                 imgContainer.innerHTML = tweet.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('');
-            } else {
-                imgContainer.classList.add('hidden');
-            }
+            } else { imgContainer.classList.add('hidden'); }
 
-            // 渲染 Quote
             const quoteBox = document.getElementById('renderQuote');
             if (tweet.quoteInfo) {
                 quoteBox.classList.remove('hidden');
+                
+                let qImgHtml = '';
+                const qImgCount = tweet.quoteInfo.imagesBase64 ? tweet.quoteInfo.imagesBase64.length : 0;
+                if (qImgCount > 0) {
+                    qImgHtml = `<div class="mt-2 ${buildGridClass(qImgCount)}">` + 
+                        tweet.quoteInfo.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('') + `</div>`;
+                }
+
                 quoteBox.innerHTML = `
                 <div class="flex items-center gap-2 mb-1">
                     <img class="w-5 h-5 rounded-full object-cover" src="${tweet.quoteInfo.avatar || ''}">
                     <span class="font-bold text-[13px] text-[#0f1419]">${tweet.quoteInfo.name}</span>
                     <span class="text-[#536471] text-[13px]">${tweet.quoteInfo.handle}</span>
                 </div>
-                <div class="tweet-text text-[14px] text-[#0f1419]">${tweet.quoteInfo.text}</div>`;
+                <div class="tweet-text text-[14px] text-[#0f1419]">${formatXText(tweet.quoteInfo.text)}</div>
+                ${qImgHtml}`;
             } else { quoteBox.classList.add('hidden'); }
 
             await new Promise(resolve => setTimeout(resolve, 300));
-
             const target = document.getElementById('renderTemplate');
             const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-            document.getElementById('screenshotOutput').innerHTML = `<img src="${canvas.toDataURL("image/png")}" class="w-full h-auto rounded-xl shadow border border-gray-200 pointer-events-auto" style="-webkit-touch-callout: default;">`;
+            document.getElementById('screenshotOutput').innerHTML = `<img src="${canvas.toDataURL("image/png")}" class="w-full h-auto rounded-xl shadow border border-gray-200 pointer-events-auto">`;
         }
 
         function copyText() {
