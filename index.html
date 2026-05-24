@@ -23,6 +23,11 @@
         .tweet-grid-3 img:nth-child(3) { grid-column: 2; grid-row: 2; width: 100%; height: 100%; object-fit: cover; }
         .tweet-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-4 img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* 顶部 Tab 切换动画 */
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-active { background-color: #ffffff; color: #000000; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-weight: bold; }
+        .tab-inactive { background-color: transparent; color: #9ca3af; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -44,16 +49,24 @@
     <!-- 工作台 -->
     <div id="appPage" class="hidden pb-20">
         <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
-            <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
+            <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-solid fa-bolt text-xl"></i> SonyaHolic搬运站</h1>
             <button onclick="logout()" class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-300">切换通行码</button>
         </div>
 
-        <div class="p-4 max-w-lg mx-auto mt-2 space-y-5">
+        <!-- 平台切换器 -->
+        <div class="px-4 mt-4 max-w-lg mx-auto">
+            <div class="bg-gray-200 p-1 rounded-full flex">
+                <button onclick="switchPlatform('X')" id="tabX" class="tab-btn tab-active flex-1 py-2 rounded-full text-sm flex justify-center items-center gap-1.5"><i class="fa-brands fa-x-twitter"></i> X 搬运</button>
+                <button onclick="switchPlatform('IG')" id="tabIG" class="tab-btn tab-inactive flex-1 py-2 rounded-full text-sm flex justify-center items-center gap-1.5"><i class="fa-brands fa-instagram"></i> IG 搬运</button>
+            </div>
+        </div>
+
+        <div class="p-4 max-w-lg mx-auto space-y-5">
             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
                 
                 <!-- 积木式选项开关 -->
-                <div class="flex flex-wrap items-center justify-between gap-2 bg-gray-50 p-3 rounded-2xl border border-gray-200">
-                    <label class="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer">
+                <div class="flex flex-wrap items-center justify-between gap-2 bg-gray-50 p-3 rounded-2xl border border-gray-200" id="optionsContainer">
+                    <label class="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer" id="labelScreenshot">
                         <input type="checkbox" id="optScreenshot" class="w-4 h-4 text-black focus:ring-black border-gray-300 rounded"> 页面截图
                     </label>
                     <label class="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer">
@@ -92,14 +105,12 @@
             <!-- 结果区域 -->
             <div id="resultArea" class="hidden space-y-5">
                 
-                <!-- 截图生成区 -->
+                <!-- 截图生成区 (仅X搬运显示) -->
                 <div id="screenshotSection" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative p-4 hidden">
                     <div class="px-2 py-2 mb-3 bg-gray-50 flex justify-between items-center rounded-xl border border-gray-200">
                         <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">排版截屏生成</span>
-                        <!-- 按照要求修改的说明文案 -->
                         <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 点击图片进入下载</span>
                     </div>
-                    <!-- 允许多张截图叠加渲染，改为可点击触发强制打包下载 -->
                     <div class="w-full flex flex-col gap-3 p-1" id="screenshotOutput"></div>
                 </div>
 
@@ -118,7 +129,6 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池 (汇总)</p>
-                            <!-- 按照要求修改的说明文案 -->
                             <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 点击图片或视频进入下载。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
@@ -164,9 +174,9 @@
     </div>
 
     <script>
-        // 选项持久化记忆系统
         const optKeys = ['optScreenshot', 'optPrefix', 'optTranslation', 'optSuffix'];
         const MAX_INPUTS = 8;
+        let currentPlatform = 'X'; 
 
         window.onload = () => {
             if (localStorage.getItem('bot_pwd')) {
@@ -189,6 +199,37 @@
             
             updateAddBtn();
         };
+
+        function switchPlatform(platform) {
+            currentPlatform = platform;
+            
+            const tabX = document.getElementById('tabX');
+            const tabIG = document.getElementById('tabIG');
+            const labelScreen = document.getElementById('labelScreenshot');
+
+            if (platform === 'X') {
+                tabX.className = "tab-btn tab-active flex-1 py-2 rounded-full text-sm flex justify-center items-center gap-1.5";
+                tabIG.className = "tab-btn tab-inactive flex-1 py-2 rounded-full text-sm flex justify-center items-center gap-1.5";
+                labelScreen.style.display = "flex";
+            } else {
+                tabIG.className = "tab-btn tab-active flex-1 py-2 rounded-full text-sm flex justify-center items-center gap-1.5";
+                tabX.className = "tab-btn tab-inactive flex-1 py-2 rounded-full text-sm flex justify-center items-center gap-1.5";
+                labelScreen.style.display = "none";
+                document.getElementById('optScreenshot').checked = false; 
+            }
+
+            // 清空旧链接
+            document.getElementById('linkInputsContainer').innerHTML = `
+                <div class="relative link-input-wrapper" id="link-row-0">
+                    <input type="text" class="link-input w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black shadow-sm transition-all">
+                    <button onclick="removeLinkInput('0')" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 p-2 transition-colors">
+                        <i class="fa-solid fa-circle-xmark text-lg"></i>
+                    </button>
+                </div>
+            `;
+            document.getElementById('resultArea').classList.add('hidden');
+            updateAddBtn();
+        }
 
         function login() {
             const pwd = document.getElementById('passwordInput').value.trim();
@@ -217,7 +258,6 @@
             setTimeout(() => { toast.style.opacity = '0'; }, 3000);
         }
 
-        // --- 动态输入框逻辑开始 ---
         function updateAddBtn() {
             const btn = document.getElementById('addLinkBtn');
             const currentCount = document.querySelectorAll('.link-input-wrapper').length;
@@ -232,7 +272,7 @@
             const inputs = document.querySelectorAll('.link-input');
             inputs.forEach((input, index) => {
                 if (input.value === '') {
-                    input.placeholder = `粘贴第 ${index + 1} 条 X 链接...`;
+                    input.placeholder = `粘贴第 ${index + 1} 条 ${currentPlatform} 链接...`;
                 }
             });
         }
@@ -305,7 +345,6 @@
             return 'tweet-grid-1';
         }
 
-        // 统一的多媒体打包引擎 (视频/图片附件)
         async function downloadMediaFile(url, btnElement, type) {
             const originalHtml = btnElement.innerHTML;
             btnElement.innerHTML = `
@@ -329,7 +368,7 @@
                 const blobUrl = URL.createObjectURL(fileBlob);
                 
                 const ext = type === 'video' ? 'mp4' : 'jpg';
-                const filename = `SonyaHolic_${type === 'video' ? 'Video' : 'Image'}_${Date.now()}.${ext}`;
+                const filename = `SonyaHolic_${currentPlatform}_${Date.now()}.${ext}`;
 
                 const a = document.createElement('a');
                 a.href = blobUrl;
@@ -349,7 +388,6 @@
             }
         }
 
-        // 新增的截屏图片打包下载引擎
         async function downloadScreenshotImage(dataUrl, btnElement) {
             const originalHtml = btnElement.innerHTML;
             btnElement.innerHTML = `
@@ -362,11 +400,8 @@
             btnElement.style.pointerEvents = 'none';
 
             try {
-                // 直接从 Base64 转化为 Blob
                 const res = await fetch(dataUrl);
                 const originalBlob = await res.blob();
-                
-                // 伪装文件流欺骗 Safari 触发系统下载
                 const fileBlob = new Blob([originalBlob], { type: 'application/octet-stream' });
                 const blobUrl = URL.createObjectURL(fileBlob);
                 
@@ -389,7 +424,6 @@
             }
         }
 
-        // 核心流程控制
         async function processLink() {
             const inputs = document.querySelectorAll('.link-input');
             let combinedText = '';
@@ -399,16 +433,29 @@
                 }
             });
 
-            const urlMatches = combinedText.match(/(?:https?:\/\/)?(?:x\.com|twitter\.com)\/[^\/\s]+\/status\/\d+/g);
+            // 防错校验
+            if (currentPlatform === 'X' && combinedText.includes('instagram.com')) {
+                return showToast('❌ 请在IG搬运界面输入Instagram链接');
+            }
+            if (currentPlatform === 'IG' && (combinedText.includes('x.com') || combinedText.includes('twitter.com'))) {
+                return showToast('❌ 请在X搬运界面输入X链接');
+            }
+
+            let urlMatches = [];
+            if (currentPlatform === 'X') {
+                urlMatches = combinedText.match(/(?:https?:\/\/)?(?:x\.com|twitter\.com)\/[^\/\s]+\/status\/\d+/g);
+            } else {
+                urlMatches = combinedText.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|stories\/[^\/\s]+)\/[^\/\s?#&]+/g);
+            }
             
-            if (!urlMatches || urlMatches.length === 0) return showToast('未识别到有效的 X 链接');
+            if (!urlMatches || urlMatches.length === 0) return showToast(`未识别到有效的 ${currentPlatform} 链接`);
             
             const urls = [...new Set(urlMatches)].map(u => u.startsWith('http') ? u : 'https://' + u);
-            if (urls.length > MAX_INPUTS) return showToast(`最大支持同时处理 ${MAX_INPUTS} 条链接，请缩减后重试`);
+            if (urls.length > MAX_INPUTS) return showToast(`最大支持同时处理 ${MAX_INPUTS} 条链接`);
             
-            // 获取用户开关配置
             const options = {
-                needScreenshot: document.getElementById('optScreenshot').checked,
+                platform: currentPlatform,
+                needScreenshot: currentPlatform === 'X' ? document.getElementById('optScreenshot').checked : false,
                 needPrefix: document.getElementById('optPrefix').checked,
                 needTranslation: document.getElementById('optTranslation').checked,
                 needSuffix: document.getElementById('optSuffix').checked
@@ -448,8 +495,8 @@
             document.getElementById('btnText').innerText = "多链抓取 & 整合输出";
         }
 
-        // 渲染与智能拼接引擎
         async function renderResults(tweets, prefixText, suffixText, options) {
+            const isIG = options.platform === 'IG';
             
             // 1. 处理文案拼接
             const textSection = document.getElementById('textSection');
@@ -465,21 +512,40 @@
                     const gmt8Date = new Date(utc + (3600000 * 8));
                     const dateStr = `${gmt8Date.getFullYear()}${String(gmt8Date.getMonth()+1).padStart(2,'0')}${String(gmt8Date.getDate()).padStart(2,'0')}`;
                     
-                    const sonyaTweets = tweets.filter(t => t.authorHandle.toLowerCase() === '@sonyasarann');
+                    const sonyaTweets = tweets.filter(t => (t.authorHandle || '').toLowerCase().includes('sonyasarann'));
                     let header = "";
                     let crStr = "";
 
-                    if (sonyaTweets.length > 0) {
-                        const hasUpdate = sonyaTweets.some(t => !t.isReply);
-                        const hasReply = sonyaTweets.some(t => t.isReply);
-                        let action = "更新/回复";
-                        if (hasUpdate && !hasReply) action = "更新";
-                        else if (!hasUpdate && hasReply) action = "回复";
-                        header = `${dateStr} Sonya X${action}`;
+                    if (isIG) {
+                        if (sonyaTweets.length > 0) {
+                            const hasPost = sonyaTweets.some(t => t.isPost);
+                            if (hasPost) header = `${dateStr} Sonya IG帖子更新`;
+                            else header = `${dateStr} Sonya IG快拍更新`;
+                            
+                            // 尝试判断是否快拍转发 (仅对有明确其他来源的添加cr)
+                            const reposts = sonyaTweets.filter(t => t.authorName && t.authorName.toLowerCase() !== 'sonyasarann');
+                            if (reposts.length > 0) {
+                                crStr = reposts.map(r => `cr：${r.authorName}`).join('\n');
+                            }
+                        } else {
+                            header = `${dateStr} IG更新Sonya相关`;
+                            const uniqueCrs = [...new Set(tweets.map(t => t.authorName || t.authorHandle.replace('@','')))];
+                            crStr = uniqueCrs.map(c => `cr：${c}`).join('\n');
+                        }
                     } else {
-                        header = `${dateStr} X更新Sonya相关`;
-                        const uniqueCrs = [...new Set(tweets.map(t => t.authorName))];
-                        crStr = uniqueCrs.map(c => `cr：${c}`).join('\n');
+                        // X 逻辑
+                        if (sonyaTweets.length > 0) {
+                            const hasUpdate = sonyaTweets.some(t => !t.isReply);
+                            const hasReply = sonyaTweets.some(t => t.isReply);
+                            let action = "更新/回复";
+                            if (hasUpdate && !hasReply) action = "更新";
+                            else if (!hasUpdate && hasReply) action = "回复";
+                            header = `${dateStr} Sonya X${action}`;
+                        } else {
+                            header = `${dateStr} X更新Sonya相关`;
+                            const uniqueCrs = [...new Set(tweets.map(t => t.authorName))];
+                            crStr = uniqueCrs.map(c => `cr：${c}`).join('\n');
+                        }
                     }
                     parts.push(header);
 
@@ -516,7 +582,7 @@
                     if (media.type === 'video') {
                         mediaGrid.innerHTML += `
                         <div onclick="downloadMediaFile('${media.url}', this, 'video')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200 select-none">
-                            <img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60">
+                            <img src="${media.thumbnail || media.url}" class="w-full h-full object-cover opacity-60">
                             <div class="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
                                 <i class="fa-solid fa-film text-2xl mb-1 drop-shadow-md"></i>
                                 <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">提取视频</span>
@@ -535,12 +601,12 @@
                 });
             } else { mediaArea.classList.add('hidden'); }
 
-            // 3. 处理多截图叠加生成
+            // 3. 处理多截图叠加生成 (仅 X 搬运)
             const screenshotSection = document.getElementById('screenshotSection');
             const output = document.getElementById('screenshotOutput');
             output.innerHTML = '';
             
-            if (options.needScreenshot && tweets.length > 0) {
+            if (!isIG && options.needScreenshot && tweets.length > 0) {
                 screenshotSection.classList.remove('hidden');
                 
                 for (const tweet of tweets) {
@@ -595,14 +661,12 @@
                         ${qImgHtml}`;
                     } else { quoteBox.classList.add('hidden'); }
 
-                    // 等待渲染完成并截图
                     await new Promise(resolve => setTimeout(resolve, 350));
                     const target = document.getElementById('renderTemplate');
                     const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
                     
                     const dataUrl = canvas.toDataURL("image/png");
                     
-                    // 将生成的截图封装为带有一键打包提取功能的触发器
                     const wrapper = document.createElement('div');
                     wrapper.className = "relative cursor-pointer select-none group block";
                     wrapper.innerHTML = `
