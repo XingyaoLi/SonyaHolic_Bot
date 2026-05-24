@@ -27,7 +27,6 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-    <!-- 🔑 通行码认证门禁 -->
     <div id="loginPage" class="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-white hidden">
         <div class="w-full max-w-sm">
             <div class="text-center mb-10">
@@ -41,7 +40,6 @@
         </div>
     </div>
 
-    <!-- 🌟 工作台主体 -->
     <div id="appPage" class="hidden pb-20">
         <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
             <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
@@ -50,15 +48,12 @@
 
         <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
-                
-                <!-- 带有一键清空按钮的输入框容器 -->
                 <div class="relative">
                     <input type="text" id="linkInput" class="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
                     <button onclick="clearInput()" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 p-2">
                         <i class="fa-solid fa-circle-xmark text-lg"></i>
                     </button>
                 </div>
-
                 <button id="extractBtn" onclick="processLink()" class="w-full bg-black text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2">
                     <i class="fa-solid fa-wand-magic-sparkles" id="btnIcon"></i>
                     <span id="btnText">链接抓取 & 翻译</span>
@@ -71,9 +66,7 @@
                         <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">排版截屏生成</span>
                         <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按或使用下方按钮保存</span>
                     </div>
-                    
                     <div class="w-full bg-white flex justify-center p-1" id="screenshotOutput"></div>
-                    
                     <button onclick="downloadScreenshot()" class="mt-3 w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 shadow-sm text-sm">
                         <i class="fa-solid fa-cloud-arrow-down"></i> 下载截屏图片到相册
                     </button>
@@ -88,8 +81,7 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
-                            <!-- 【优化】：新的保存说明提示 -->
-                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 <span class="font-bold">图片</span>请直接长按保存。<br>🎬 <span class="font-bold">视频</span>点击后将安全地在<span class="font-bold text-red-500">新标签页</span>打开，在底部菜单保存视频后，关闭该标签页即可返回此处，数据不会丢失。</p>
+                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 <span class="font-bold">图片</span>请直接长按保存。<br>🎬 <span class="font-bold">视频</span>请直接点击，网页会在后台为您打包成纯文件流，随后 Safari 会直接弹出下载框，下载完成后可存入相册。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
@@ -123,16 +115,14 @@
             </div>
             <div id="renderText" class="tweet-text mb-3 text-[#0f1419]"></div>
             <div id="renderImages" class="mb-3 hidden"></div>
-
             <div id="renderQuote" class="quote-box hidden"></div>
-
             <div class="text-[#536471] text-[15px] mt-3 pb-3 border-b border-[#cfd9de]">
                 <span id="renderTime"></span>
             </div>
         </div>
     </div>
 
-    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 text-sm whitespace-nowrap">
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 text-sm whitespace-nowrap z-[9999]">
         <i class="fa-solid fa-circle-check text-green-400"></i> <span id="toastText">成功</span>
     </div>
 
@@ -171,7 +161,7 @@
             const toast = document.getElementById('toast');
             document.getElementById('toastText').innerText = msg;
             toast.style.opacity = '1';
-            setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+            setTimeout(() => { toast.style.opacity = '0'; }, 3000);
         }
 
         function clearInput() {
@@ -214,6 +204,55 @@
             if (count === 3) return 'tweet-grid-3';
             if (count >= 4) return 'tweet-grid-4';
             return 'tweet-grid-1';
+        }
+
+        // 【绝杀机制】：直接在前端把视频拉过来转成纯文件流，绝不发生页面跳转！
+        async function downloadVideoFile(url, btnElement) {
+            const originalHtml = btnElement.innerHTML;
+            // 切换状态，显示转圈动画
+            btnElement.innerHTML = `
+                <img src="${btnElement.querySelector('img').src}" class="w-full h-full object-cover opacity-30">
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-white">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl mb-1"></i>
+                    <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">正在打包文件...</span>
+                </div>
+            `;
+            btnElement.style.pointerEvents = 'none';
+
+            try {
+                // 1. 尝试使用 Vercel 云端下载节点（若配置了的话）
+                let res = await fetch(`/api/download?url=${encodeURIComponent(url)}`);
+                
+                // 2. 如果云端节点异常或缺失，自动切换到公共跨域穿透节点
+                if (!res.ok || res.status === 404) {
+                    res = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
+                }
+                
+                if (!res.ok) throw new Error('下载流请求失败');
+
+                const originalBlob = await res.blob();
+                
+                // 3. 将文件强行捏造成 application/octet-stream（未知二进制文件）
+                // 这个操作会让 Safari 直接宕机放弃播放，只能乖乖跳出“是否下载”的选项框。
+                const fileBlob = new Blob([originalBlob], { type: 'application/octet-stream' });
+                const blobUrl = URL.createObjectURL(fileBlob);
+                
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `SonyaHolic_Video_${Date.now()}.mp4`; // 下载后赋予正确的拓展名
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+                
+                showToast('✅ 打包成功，请在弹窗中点击"下载"');
+            } catch (e) {
+                showToast('⚠️ 视频过大获取失败，将尝试新页面打开');
+                window.location.href = url;
+            } finally {
+                btnElement.innerHTML = originalHtml;
+                btnElement.style.pointerEvents = 'auto';
+            }
         }
 
         async function processLink() {
@@ -271,10 +310,23 @@
                 mediaArea.classList.remove('hidden');
                 allMedia.forEach(media => {
                     if (media.type === 'video') {
-                        // 【终极方案】：使用 target="_blank" 在新标签页强制打开视频
-                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-arrow-up-right-from-square text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">新网页打开保存</span></div></a>`;
+                        // 视频附件：移除了 a 标签跳转，全面接入前端强制打包引擎 downloadVideoFile()
+                        mediaGrid.innerHTML += `
+                        <div onclick="downloadVideoFile('${media.url}', this)" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200">
+                            <img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
+                                <i class="fa-solid fa-file-arrow-down text-2xl mb-1"></i>
+                                <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">提取为文件</span>
+                            </div>
+                        </div>`;
                     } else {
-                        mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none"><i class="fa-solid fa-hand-pointer"></i> 长按保存</div></div>`;
+                        mediaGrid.innerHTML += `
+                        <div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200">
+                            <img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;">
+                            <div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none">
+                                <i class="fa-solid fa-hand-pointer"></i> 长按保存
+                            </div>
+                        </div>`;
                     }
                 });
             } else { mediaArea.classList.add('hidden'); }
@@ -314,14 +366,12 @@
             const quoteBox = document.getElementById('renderQuote');
             if (tweet.quoteInfo) {
                 quoteBox.classList.remove('hidden');
-                
                 let qImgHtml = '';
                 const qImgCount = tweet.quoteInfo.imagesBase64 ? tweet.quoteInfo.imagesBase64.length : 0;
                 if (qImgCount > 0) {
                     qImgHtml = `<div class="mt-2 ${buildGridClass(qImgCount)}">` + 
                         tweet.quoteInfo.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('') + `</div>`;
                 }
-
                 quoteBox.innerHTML = `
                 <div class="flex items-center gap-2 mb-1">
                     <img class="w-5 h-5 rounded-full object-cover" src="${tweet.quoteInfo.avatar || ''}">
