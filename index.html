@@ -64,7 +64,7 @@
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative p-4">
                     <div class="px-2 py-2 mb-2 bg-gray-50 flex justify-between items-center rounded-xl border border-gray-200">
                         <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">排版截屏生成</span>
-                        <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按或使用下方按钮保存</span>
+                        <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 使用下方按钮保存</span>
                     </div>
                     <div class="w-full bg-white flex justify-center p-1" id="screenshotOutput"></div>
                     <button onclick="downloadScreenshot()" class="mt-3 w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 shadow-sm text-sm">
@@ -81,8 +81,9 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
-                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 <span class="font-bold">图片</span>请直接长按保存。<br>🎬 <span class="font-bold">视频</span>请直接点击，网页会在后台为您打包成纯文件流，随后 Safari 会直接弹出下载框，下载完成后可存入相册。</p>
+                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 点击图片或视频，再通过 Safari 分享页面下载到相册。</p>
                         </div>
+                        <!-- 多媒体列表 -->
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
                 </div>
@@ -206,48 +207,47 @@
             return 'tweet-grid-1';
         }
 
-        // 【绝杀机制】：直接在前端把视频拉过来转成纯文件流，绝不发生页面跳转！
-        async function downloadVideoFile(url, btnElement) {
+        // 【终极提取功能】：通杀图片和视频！
+        async function downloadMediaFile(url, btnElement, type) {
             const originalHtml = btnElement.innerHTML;
-            // 切换状态，显示转圈动画
             btnElement.innerHTML = `
                 <img src="${btnElement.querySelector('img').src}" class="w-full h-full object-cover opacity-30">
-                <div class="absolute inset-0 flex flex-col items-center justify-center text-white">
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-white drop-shadow-md">
                     <i class="fa-solid fa-spinner fa-spin text-3xl mb-1"></i>
-                    <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">正在打包文件...</span>
+                    <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">打包中...</span>
                 </div>
             `;
             btnElement.style.pointerEvents = 'none';
 
             try {
-                // 1. 尝试使用 Vercel 云端下载节点（若配置了的话）
                 let res = await fetch(`/api/download?url=${encodeURIComponent(url)}`);
                 
-                // 2. 如果云端节点异常或缺失，自动切换到公共跨域穿透节点
                 if (!res.ok || res.status === 404) {
                     res = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
                 }
                 
-                if (!res.ok) throw new Error('下载流请求失败');
+                if (!res.ok) throw new Error('流请求失败');
 
                 const originalBlob = await res.blob();
                 
-                // 3. 将文件强行捏造成 application/octet-stream（未知二进制文件）
-                // 这个操作会让 Safari 直接宕机放弃播放，只能乖乖跳出“是否下载”的选项框。
+                // 【核心黑科技】：不管图片还是视频，全部变成 application/octet-stream 诱骗苹果直接下载
                 const fileBlob = new Blob([originalBlob], { type: 'application/octet-stream' });
                 const blobUrl = URL.createObjectURL(fileBlob);
                 
+                const ext = type === 'video' ? 'mp4' : 'jpg';
+                const filename = `SonyaHolic_${type === 'video' ? 'Video' : 'Image'}_${Date.now()}.${ext}`;
+
                 const a = document.createElement('a');
                 a.href = blobUrl;
-                a.download = `SonyaHolic_Video_${Date.now()}.mp4`; // 下载后赋予正确的拓展名
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(blobUrl);
                 
-                showToast('✅ 打包成功，请在弹窗中点击"下载"');
+                showToast(`✅ ${type === 'video' ? '视频' : '图片'}打包成功，请点击"下载"`);
             } catch (e) {
-                showToast('⚠️ 视频过大获取失败，将尝试新页面打开');
+                showToast(`⚠️ 获取失败，将尝试新页面打开`);
                 window.location.href = url;
             } finally {
                 btnElement.innerHTML = originalHtml;
@@ -310,21 +310,23 @@
                 mediaArea.classList.remove('hidden');
                 allMedia.forEach(media => {
                     if (media.type === 'video') {
-                        // 视频附件：移除了 a 标签跳转，全面接入前端强制打包引擎 downloadVideoFile()
+                        // 视频附件按钮
                         mediaGrid.innerHTML += `
-                        <div onclick="downloadVideoFile('${media.url}', this)" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200">
+                        <div onclick="downloadMediaFile('${media.url}', this, 'video')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200 select-none">
                             <img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60">
                             <div class="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
-                                <i class="fa-solid fa-file-arrow-down text-2xl mb-1"></i>
-                                <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">提取为文件</span>
+                                <i class="fa-solid fa-film text-2xl mb-1 drop-shadow-md"></i>
+                                <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">提取视频</span>
                             </div>
                         </div>`;
                     } else {
+                        // 图片附件按钮 (改为与视频相同的单击提取逻辑)
                         mediaGrid.innerHTML += `
-                        <div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200">
-                            <img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;">
-                            <div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none">
-                                <i class="fa-solid fa-hand-pointer"></i> 长按保存
+                        <div onclick="downloadMediaFile('${media.url}', this, 'image')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200 select-none">
+                            <img src="${media.url}" class="w-full h-full object-cover opacity-80">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
+                                <i class="fa-solid fa-image text-2xl mb-1 drop-shadow-md"></i>
+                                <span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">提取图片</span>
                             </div>
                         </div>`;
                     }
