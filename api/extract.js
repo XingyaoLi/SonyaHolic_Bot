@@ -45,7 +45,7 @@ export default async function handler(req, res) {
                 { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
                 { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
             ];
-            model = genAI.getGenerativeModel({ model: "gemini-3.1-flash", safetySettings });
+            model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite", safetySettings });
         }
 
         const baseRule = `
