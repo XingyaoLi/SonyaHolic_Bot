@@ -49,7 +49,6 @@
         <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
                 
-                <!-- 带有一键清空按钮的输入框容器 -->
                 <div class="relative">
                     <input type="text" id="linkInput" class="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
                     <button onclick="clearInput()" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 p-2">
@@ -86,7 +85,7 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
-                            <p class="text-[10px] text-blue-700 mt-1">💡 <span class="font-bold">图片</span>请直接长按保存。<span class="font-bold">视频</span>点击后可在弹窗内保存。</p>
+                            <p class="text-[10px] text-blue-700 mt-1">💡 <span class="font-bold">图片</span>请直接长按保存。<span class="font-bold">视频</span>点击后可在弹窗内一键保存。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
@@ -95,7 +94,7 @@
         </div>
     </div>
 
-    <!-- 🎥 【终极防拦截内嵌视频弹窗】 -->
+    <!-- 🎥 【终极防拦截内嵌视频弹窗 + 流媒体下载黑科技】 -->
     <div id="videoModal" class="fixed inset-0 z-[100] bg-black bg-opacity-95 hidden flex-col items-center justify-center backdrop-blur-sm transition-opacity duration-300">
         <!-- 关闭按钮 -->
         <button onclick="closeVideoModal()" class="absolute top-6 right-6 text-white text-4xl hover:text-gray-300 z-[110] p-2">
@@ -103,20 +102,22 @@
         </button>
         
         <div class="w-full max-w-lg p-4 flex flex-col items-center relative z-[105]">
-            <!-- 【关键修复 1】：添加 referrerpolicy="no-referrer" 伪装来源，破解推特防盗链导致无法播放的问题 -->
-            <video id="modalVideoPlayer" controls playsinline referrerpolicy="no-referrer" class="w-full max-h-[50vh] rounded-xl shadow-2xl bg-black border border-gray-800"></video>
+            <!-- 播放器，保留 playsinline 防止自动全屏被苹果劫持 -->
+            <video id="modalVideoPlayer" controls playsinline referrerpolicy="no-referrer" class="w-full max-h-[45vh] rounded-xl shadow-2xl bg-black border border-gray-800"></video>
             
-            <!-- 【关键修复 2】：原生浏览器直达通道，彻底解决 iOS 沙盒拦截相册保存的难题 -->
-            <a id="fallbackLink" href="#" target="_blank" class="mt-5 w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2 shadow text-sm">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> 浏览器原生打开 (100%可保存相册)
-            </a>
+            <div class="mt-5 w-full">
+                <!-- 黑科技下载按钮 -->
+                <button id="magicDownloadBtn" class="w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2 shadow text-sm transition-all">
+                    <i class="fa-solid fa-download"></i> 保存视频到手机相册
+                </button>
+            </div>
 
             <!-- 保存教程说明 -->
             <div class="mt-4 text-center text-white space-y-3 bg-gray-900 p-5 rounded-2xl border border-gray-700 w-full">
-                <p class="font-bold text-lg text-emerald-400 mb-2"><i class="fa-solid fa-circle-down"></i> 如何保存视频？</p>
+                <p class="font-bold text-lg text-emerald-400 mb-2"><i class="fa-solid fa-circle-down"></i> 保存说明</p>
                 <div class="text-sm text-gray-300 text-left space-y-2">
-                    <p>🍎 <span class="font-bold text-white">方案A (最简单)：</span>直接 <span class="text-yellow-400 font-bold">长按上方视频</span> 选择「存储视频」。</p>
-                    <p>🚀 <span class="font-bold text-white">方案B (防拦截)：</span>如果长按无反应，请点击上方的 <span class="text-blue-400 font-bold">【浏览器原生打开】</span> 按钮。在新页面的底栏点击分享按钮 <i class="fa-solid fa-arrow-up-from-bracket mx-1 text-gray-400"></i>，选择「存储到文件」或「存储视频」，然后切回来，提取结果不会丢失！</p>
+                    <p>🍎 <span class="font-bold text-white">苹果 iOS：</span>点击上方绿色的<span class="font-bold">【保存视频】</span>按钮。稍等几秒缓冲后，系统会从底部弹出分享面板，请点击 <span class="text-yellow-400 font-bold">「存储视频」</span>。</p>
+                    <p>🤖 <span class="font-bold text-white">安卓 Android：</span>点击上方按钮，或点击视频画面右下角的三个点 (⋮) 选择下载。</p>
                 </div>
             </div>
             
@@ -126,7 +127,6 @@
     <!-- 🌟 隐藏的推特原生UI画布 -->
     <div style="position: absolute; left: -9999px; top: 0;">
         <div id="renderTemplate" class="tweet-card w-[420px] p-4 bg-white relative overflow-hidden">
-            
             <div id="renderParent" class="hidden relative pb-3">
                 <div class="absolute left-[23px] top-[52px] bottom-0 w-[2px] bg-[#cfd9de]"></div>
                 <div class="flex gap-3 mb-1">
@@ -206,18 +206,17 @@
             document.getElementById('linkInput').focus();
         }
 
-        // --- 修复升级的视频弹窗逻辑 ---
+        // --- 视频弹窗逻辑 ---
         function openVideoModal(url) {
             const modal = document.getElementById('videoModal');
             const player = document.getElementById('modalVideoPlayer');
-            const fallbackLink = document.getElementById('fallbackLink');
+            const magicBtn = document.getElementById('magicDownloadBtn');
             
-            // 绑定源并强制加载，破解 iOS 缓存假死
             player.src = url;
             player.load(); 
             
-            // 绑定原生直达通道
-            fallbackLink.href = url;
+            // 绑定下载黑科技
+            magicBtn.onclick = () => saveMediaToGallery(url, magicBtn);
             
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -227,13 +226,57 @@
         function closeVideoModal() {
             const modal = document.getElementById('videoModal');
             const player = document.getElementById('modalVideoPlayer');
-            // 暂停并彻底清空视频流，防止后台偷跑流量
             player.pause();
             player.removeAttribute('src'); 
             player.load();
-            
             modal.classList.add('hidden');
             modal.classList.remove('flex');
+        }
+
+        // 【黑科技】: 通过 Fetch 转化 Blob 并唤起系统底层的 Share 菜单
+        async function saveMediaToGallery(url, btnElement) {
+            const originalHtml = btnElement.innerHTML;
+            btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在提取原画质视频，请稍候...';
+            btnElement.disabled = true;
+            btnElement.classList.replace('bg-emerald-600', 'bg-gray-500');
+
+            try {
+                // 将视频转化为二进制流文件
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Network issue');
+                const blob = await res.blob();
+                const filename = `SonyaHolic_Video_${Date.now()}.mp4`;
+                const file = new File([blob], filename, { type: 'video/mp4' });
+
+                // 尝试调用苹果 iOS 15+ 的原生分享接口（直接存入相册）
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: filename
+                    });
+                    showToast('✅ 系统菜单已唤起，请选择“存储视频”');
+                } else {
+                    // 如果不支持（如老安卓），则触发浏览器自带的下载
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                    showToast('✅ 视频已开始下载');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('⚠️ 视频过大或被限制，已为您在新网页打开');
+                // 最底层的保底方案：新页面打开
+                window.open(url, '_blank');
+            } finally {
+                btnElement.innerHTML = originalHtml;
+                btnElement.disabled = false;
+                btnElement.classList.replace('bg-gray-500', 'bg-emerald-600');
+            }
         }
 
         function formatXText(text) {
@@ -327,8 +370,10 @@
                 mediaArea.classList.remove('hidden');
                 allMedia.forEach(media => {
                     if (media.type === 'video') {
+                        // 视频附件：点击调用内嵌防丢失视频弹窗
                         mediaGrid.innerHTML += `<div onclick="openVideoModal('${media.url}')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">打开视频提取</span></div></div>`;
                     } else {
+                        // 图片附件：直接长按保存
                         mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none"><i class="fa-solid fa-hand-pointer"></i> 长按保存</div></div>`;
                     }
                 });
