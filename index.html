@@ -13,14 +13,18 @@
         .tweet-text { font-size: 15px; line-height: 20px; white-space: pre-wrap; word-wrap: break-word; }
         .quote-box { border: 1px solid #cfd9de; border-radius: 12px; padding: 12px; margin-top: 12px; background-color: #ffffff; }
         
+        /* 【优化修复 1】：当只有 1 张图时，保持绝对原图比例，不限制最大高度，不裁剪 */
         .tweet-grid-1 { display: block; border-radius: 16px; overflow: hidden; }
-        .tweet-grid-1 img { width: 100%; height: auto; max-height: 400px; object-fit: cover; border: 1px solid #cfd9de; }
+        .tweet-grid-1 img { width: 100%; height: auto; border: 1px solid #cfd9de; border-radius: 16px; }
+        
         .tweet-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; height: 260px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-2 img { width: 100%; height: 100%; object-fit: cover; }
+        
         .tweet-grid-3 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-3 img:nth-child(1) { grid-column: 1; grid-row: 1 / 3; width: 100%; height: 100%; object-fit: cover; }
         .tweet-grid-3 img:nth-child(2) { grid-column: 2; grid-row: 1; width: 100%; height: 100%; object-fit: cover; }
         .tweet-grid-3 img:nth-child(3) { grid-column: 2; grid-row: 2; width: 100%; height: 100%; object-fit: cover; }
+        
         .tweet-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; height: 280px; border-radius: 16px; overflow: hidden; border: 1px solid #cfd9de; }
         .tweet-grid-4 img { width: 100%; height: 100%; object-fit: cover; }
     </style>
@@ -56,12 +60,17 @@
             </div>
 
             <div id="resultArea" class="hidden space-y-5">
-                <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative">
-                    <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden relative p-4">
+                    <div class="px-2 py-2 mb-2 bg-gray-50 flex justify-between items-center rounded-xl border border-gray-200">
                         <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">排版截屏生成</span>
-                        <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按保存图片</span>
+                        <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按或使用下方按钮保存</span>
                     </div>
-                    <div class="w-full bg-white flex justify-center p-2" id="screenshotOutput"></div>
+                    
+                    <div class="w-full bg-white flex justify-center p-1" id="screenshotOutput"></div>
+                    
+                    <button onclick="downloadScreenshot()" class="mt-3 w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 shadow-sm text-sm">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> 下载截屏图片到相册
+                    </button>
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5">
@@ -71,7 +80,12 @@
                     </button>
 
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
-                        <p class="text-xs font-bold text-gray-900 mb-3"><i class="fa-solid fa-download"></i> 主贴、原贴及引用的所有附件</p>
+                        <div class="flex justify-between items-center mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
+                            <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
+                            <button onclick="downloadAllMedia()" class="text-xs bg-blue-600 active:bg-blue-700 text-white font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow">
+                                <i class="fa-solid fa-angles-down"></i> 一键下载所有相册视频/原图
+                            </button>
+                        </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
                 </div>
@@ -118,6 +132,9 @@
     </div>
 
     <script>
+        // 全局媒体缓存池
+        let globalMediaCache = [];
+
         window.onload = () => {
             if (localStorage.getItem('bot_pwd')) {
                 document.getElementById('loginPage').classList.add('hidden');
@@ -238,17 +255,18 @@
             const mediaArea = document.getElementById('mediaArea');
             mediaGrid.innerHTML = '';
             
-            let allMedia = [...(tweet.rawMediaUrls || [])];
-            if (tweet.parentInfo && tweet.parentInfo.rawMediaUrls) allMedia.push(...tweet.parentInfo.rawMediaUrls);
-            if (tweet.quoteInfo && tweet.quoteInfo.rawMediaUrls) allMedia.push(...tweet.quoteInfo.rawMediaUrls);
+            // 整合附件池并缓存到全局
+            globalMediaCache = [...(tweet.rawMediaUrls || [])];
+            if (tweet.parentInfo && tweet.parentInfo.rawMediaUrls) globalMediaCache.push(...tweet.parentInfo.rawMediaUrls);
+            if (tweet.quoteInfo && tweet.quoteInfo.rawMediaUrls) globalMediaCache.push(...tweet.quoteInfo.rawMediaUrls);
 
-            if (allMedia.length > 0) {
+            if (globalMediaCache.length > 0) {
                 mediaArea.classList.remove('hidden');
-                allMedia.forEach(media => {
+                globalMediaCache.forEach(media => {
                     if (media.type === 'video') {
-                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">原视频</span></div></a>`;
+                        mediaGrid.innerHTML += `<div class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">视频附件</span></div></div>`;
                     } else {
-                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded"><i class="fa-solid fa-download"></i></div></a>`;
+                        mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover"></div>`;
                     }
                 });
             } else { mediaArea.classList.add('hidden'); }
@@ -270,6 +288,7 @@
                 const pImgContainer = document.getElementById('parentImages');
                 const pImgCount = tweet.parentInfo.imagesBase64 ? tweet.parentInfo.imagesBase64.length : 0;
                 if (pImgCount > 0) {
+                    parentBox.classList.remove('pb-3'); // 回复链连线无缝结合
                     pImgContainer.classList.remove('hidden');
                     pImgContainer.className = `ml-[60px] mb-3 ${buildGridClass(pImgCount)}`;
                     pImgContainer.innerHTML = tweet.parentInfo.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('');
@@ -287,14 +306,12 @@
             const quoteBox = document.getElementById('renderQuote');
             if (tweet.quoteInfo) {
                 quoteBox.classList.remove('hidden');
-                
                 let qImgHtml = '';
                 const qImgCount = tweet.quoteInfo.imagesBase64 ? tweet.quoteInfo.imagesBase64.length : 0;
                 if (qImgCount > 0) {
                     qImgHtml = `<div class="mt-2 ${buildGridClass(qImgCount)}">` + 
                         tweet.quoteInfo.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('') + `</div>`;
                 }
-
                 quoteBox.innerHTML = `
                 <div class="flex items-center gap-2 mb-1">
                     <img class="w-5 h-5 rounded-full object-cover" src="${tweet.quoteInfo.avatar || ''}">
@@ -305,10 +322,67 @@
                 ${qImgHtml}`;
             } else { quoteBox.classList.add('hidden'); }
 
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, 350));
             const target = document.getElementById('renderTemplate');
             const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-            document.getElementById('screenshotOutput').innerHTML = `<img src="${canvas.toDataURL("image/png")}" class="w-full h-auto rounded-xl shadow border border-gray-200 pointer-events-auto">`;
+            document.getElementById('screenshotOutput').innerHTML = `<img src="${canvas.toDataURL("image/png")}" class="w-full h-auto rounded-xl shadow border border-gray-200 pointer-events-auto" id="finalScreenshotImage">`;
+        }
+
+        // 下载截屏到手机
+        function downloadScreenshot() {
+            const img = document.getElementById('finalScreenshotImage');
+            if(!img) return showToast('未找到生成的截图');
+            const a = document.createElement('a');
+            a.href = img.src;
+            a.download = `SonyaHolic_X_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('已保存，请前往相册查看');
+        }
+
+        // 【优化修复 3】：通过 Blob 转换强制注入拓展名，完美解决手机下载无法保存至相册的世纪难题
+        async function downloadAllMedia() {
+            if (globalMediaCache.length === 0) return showToast('池子里空空如也哦');
+            showToast('开始转换为相册格式，请勿关闭页面...');
+
+            for (let i = 0; i < globalMediaCache.length; i++) {
+                const media = globalMediaCache[i];
+                const isVideo = media.type === 'video';
+                const fileExt = isVideo ? 'mp4' : 'jpg';
+                const fileName = `Sonya_Media_${Date.now()}_${i + 1}.${fileExt}`;
+
+                try {
+                    // 使用 fetch 以二进制流获取，跨越移动端下载协议限制
+                    const response = await fetch(media.url);
+                    if (!response.ok) throw new Error('CORS or Network issue');
+                    const blob = await response.blob();
+                    
+                    // 将 Blob 流重新封装为手机系统可读的媒体文件对象
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    
+                    // 释放内存缓存
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(blobUrl);
+                } catch (error) {
+                    // 如果遇到严格的防盗链跨域，自动降级启用新页签直连下载，确保不卡死
+                    const link = document.createElement('a');
+                    link.href = media.url;
+                    link.target = '_blank';
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+                // 留出 400 毫秒的间隙，防止多队列下载被手机浏览器判定为恶意弹窗拦截
+                await new Promise(resolve => setTimeout(resolve, 400));
+            }
+            showToast('多媒体附件全部同步下载完毕！');
         }
 
         function copyText() {
