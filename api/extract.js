@@ -140,7 +140,8 @@ export default async function handler(req, res) {
         
         const baseRule = `
 规则：
-1. 翻译成中文。专属语境：泰国演员 Sonya Saranphat/LMSY。名词“熊”替换为”Lookmhee“。
+1. 非中英文语言先翻译成英文，再翻译成中文。英文直接翻译成中文，中文保留原文。但最后只显示译文+原文的中文部分，并且不加入任何AI解释。
+2. 专属语境：泰国演员 Sonya Saranphat/LMSY。名词“熊”替换为”Lookmhee“。
 2. 完全忽略并删除所有带 # 号的 Hashtags。
 3. 智能识别并删除全大写趋势打榜短句。
 4. 务必严格保留原文里的所有表情符号(emoji)。
