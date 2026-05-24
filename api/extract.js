@@ -139,7 +139,7 @@ export default async function handler(req, res) {
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
         ];
         
-        const model = genAI.getGenerativeModel({ model: "gemini-pro", safetySettings });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite", safetySettings });
         
         const baseRule = `
 规则：
