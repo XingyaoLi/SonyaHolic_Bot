@@ -27,6 +27,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
+    <!-- 🔑 通行码认证门禁 -->
     <div id="loginPage" class="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-white hidden">
         <div class="w-full max-w-sm">
             <div class="text-center mb-10">
@@ -40,6 +41,7 @@
         </div>
     </div>
 
+    <!-- 🌟 工作台主体 -->
     <div id="appPage" class="hidden pb-20">
         <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
             <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
@@ -49,7 +51,7 @@
         <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
                 
-                <!-- 【优化 1】：增加带有一键清空按钮的输入框容器 -->
+                <!-- 带有一键清空按钮的输入框容器 -->
                 <div class="relative">
                     <input type="text" id="linkInput" class="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
                     <button onclick="clearInput()" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 p-2">
@@ -83,16 +85,39 @@
                         <i class="fa-regular fa-copy"></i> 复制排版文案
                     </button>
 
-                    <!-- 【优化 2】：重构附件区域，提示用户原生长按保存 -->
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
-                            <p class="text-[10px] text-blue-700 mt-1">💡 图片请直接长按保存，视频请点击打开后保存。</p>
+                            <p class="text-[10px] text-blue-700 mt-1">💡 <span class="font-bold">图片</span>请直接长按保存。<span class="font-bold">视频</span>点击后可在网页内直接播放和保存。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 🎥 【全新防丢失内嵌视频播放弹窗】 -->
+    <div id="videoModal" class="fixed inset-0 z-[100] bg-black bg-opacity-95 hidden flex-col items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <!-- 关闭按钮 -->
+        <button onclick="closeVideoModal()" class="absolute top-6 right-6 text-white text-4xl hover:text-gray-300 z-[110] p-2">
+            <i class="fa-solid fa-circle-xmark"></i>
+        </button>
+        
+        <div class="w-full max-w-lg p-4 flex flex-col items-center relative z-[105]">
+            <!-- 播放器 -->
+            <video id="modalVideoPlayer" controls playsinline class="w-full max-h-[60vh] rounded-xl shadow-2xl bg-black border border-gray-800"></video>
+            
+            <!-- 保存教程说明 -->
+            <div class="mt-8 text-center text-white space-y-3 bg-gray-900 p-5 rounded-2xl border border-gray-700 w-full">
+                <p class="font-bold text-lg text-emerald-400 mb-2"><i class="fa-solid fa-circle-down"></i> 如何保存视频到相册？</p>
+                <div class="text-sm text-gray-300 text-left space-y-2">
+                    <p>🍎 <span class="font-bold text-white">苹果 iOS：</span>请直接 <span class="text-yellow-400 font-bold">长按上方视频画面</span>，在弹出的菜单中选择「存储视频」或「下载链接的文件」。</p>
+                    <p>🤖 <span class="font-bold text-white">安卓 Android：</span>点击视频右下角的 <span class="text-yellow-400 font-bold">三个点 (⋮)</span>，选择「下载」。</p>
+                </div>
+            </div>
+            
+            <p class="text-gray-500 text-xs mt-6">保存完毕后，点击右上角 X 即可返回，提取结果不会丢失。</p>
         </div>
     </div>
 
@@ -173,11 +198,30 @@
             setTimeout(() => { toast.style.opacity = '0'; }, 2500);
         }
 
-        // 一键清空输入框和结果
         function clearInput() {
             document.getElementById('linkInput').value = '';
             document.getElementById('resultArea').classList.add('hidden');
             document.getElementById('linkInput').focus();
+        }
+
+        // --- 视频弹窗逻辑 ---
+        function openVideoModal(url) {
+            const modal = document.getElementById('videoModal');
+            const player = document.getElementById('modalVideoPlayer');
+            player.src = url;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            // 尝试自动播放
+            player.play().catch(e => console.log('浏览器限制自动播放，需用户手动点击'));
+        }
+
+        function closeVideoModal() {
+            const modal = document.getElementById('videoModal');
+            const player = document.getElementById('modalVideoPlayer');
+            player.pause();
+            player.src = ''; // 清空源，停止缓冲
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         }
 
         function formatXText(text) {
@@ -271,11 +315,10 @@
                 mediaArea.classList.remove('hidden');
                 allMedia.forEach(media => {
                     if (media.type === 'video') {
-                        // 视频保留 a 标签跳转，去新页面获取纯净版保存
-                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">打开视频提取</span></div></a>`;
+                        // 【优化 3】：将视频点击事件绑定为打开当前页面的弹窗，而不是跳走
+                        mediaGrid.innerHTML += `<div onclick="openVideoModal('${media.url}')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">点击在网页内播放保存</span></div></div>`;
                     } else {
-                        // 【优化 2】：图片剥离 a 标签，使用户可以直接使用 iOS 原生的“长按保存”唤出相册存储菜单
-                        mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none"><i class="fa-solid fa-hand-pointer"></i> 长按</div></div>`;
+                        mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none"><i class="fa-solid fa-hand-pointer"></i> 长按保存</div></div>`;
                     }
                 });
             } else { mediaArea.classList.add('hidden'); }
@@ -339,7 +382,6 @@
             document.getElementById('screenshotOutput').innerHTML = `<img src="${canvas.toDataURL("image/png")}" class="w-full h-auto rounded-xl shadow border border-gray-200 pointer-events-auto" id="finalScreenshotImage" style="-webkit-touch-callout: default;">`;
         }
 
-        // 下载合成的截图
         function downloadScreenshot() {
             const img = document.getElementById('finalScreenshotImage');
             if(!img) return showToast('未找到生成的截图');
