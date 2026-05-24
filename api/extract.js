@@ -159,7 +159,7 @@ export default async function handler(req, res) {
         } else if (quoteInfo) {
             prompt = `请翻译这段推文：${baseRule}
 要求排版：主推文译文在前，空一行，引用部分加前缀“转发内容：”。
-主推文：\n"${originalText}"\n引用推文：\n\n"${quoteInfo.text}"`;
+主推文：\n"${originalText}"\n转发内容:\n\n"${quoteInfo.text}"`;
         } else {
             prompt = `请翻译这段推文：${baseRule}\n推文：\n"${originalText}"`;
         }
