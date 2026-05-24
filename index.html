@@ -27,6 +27,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
+    <!-- 🔑 通行码认证门禁 -->
     <div id="loginPage" class="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-white hidden">
         <div class="w-full max-w-sm">
             <div class="text-center mb-10">
@@ -40,6 +41,7 @@
         </div>
     </div>
 
+    <!-- 🌟 工作台主体 -->
     <div id="appPage" class="hidden pb-20">
         <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
             <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
@@ -48,12 +50,15 @@
 
         <div class="p-4 max-w-lg mx-auto mt-2 space-y-6">
             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-5 space-y-4">
+                
+                <!-- 带有一键清空按钮的输入框容器 -->
                 <div class="relative">
                     <input type="text" id="linkInput" class="w-full pl-4 pr-12 py-3.5 bg-gray-50 border border-gray-300 rounded-2xl text-gray-900 text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="粘贴 X 链接...">
                     <button onclick="clearInput()" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 p-2">
                         <i class="fa-solid fa-circle-xmark text-lg"></i>
                     </button>
                 </div>
+
                 <button id="extractBtn" onclick="processLink()" class="w-full bg-black text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2">
                     <i class="fa-solid fa-wand-magic-sparkles" id="btnIcon"></i>
                     <span id="btnText">链接抓取 & 翻译</span>
@@ -66,7 +71,9 @@
                         <span class="text-[10px] font-bold text-white bg-black px-2 py-1 rounded-md tracking-wider">排版截屏生成</span>
                         <span class="text-[10px] text-gray-400"><i class="fa-regular fa-image"></i> 长按或使用下方按钮保存</span>
                     </div>
+                    
                     <div class="w-full bg-white flex justify-center p-1" id="screenshotOutput"></div>
+                    
                     <button onclick="downloadScreenshot()" class="mt-3 w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 shadow-sm text-sm">
                         <i class="fa-solid fa-cloud-arrow-down"></i> 下载截屏图片到相册
                     </button>
@@ -81,43 +88,11 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
-                            <p class="text-[10px] text-blue-700 mt-1">💡 <span class="font-bold">图片</span>请直接长按保存。<span class="font-bold">视频</span>点击后可在弹窗内一键提取。</p>
+                            <!-- 【优化】：新的保存说明提示 -->
+                            <p class="text-[10px] text-blue-700 mt-1 leading-relaxed">💡 <span class="font-bold">图片</span>请直接长按保存。<br>🎬 <span class="font-bold">视频</span>点击后将安全地在<span class="font-bold text-red-500">新标签页</span>打开，在底部菜单保存视频后，关闭该标签页即可返回此处，数据不会丢失。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 🎥 【终极防拦截与破解下载弹窗】 -->
-    <div id="videoModal" class="fixed inset-0 z-[100] bg-black bg-opacity-95 hidden flex-col items-center justify-center backdrop-blur-sm transition-opacity duration-300">
-        <button onclick="closeVideoModal()" class="absolute top-6 right-6 text-white text-4xl hover:text-gray-300 z-[110] p-2">
-            <i class="fa-solid fa-circle-xmark"></i>
-        </button>
-        
-        <div class="w-full max-w-lg p-4 flex flex-col items-center relative z-[105]">
-            <video id="modalVideoPlayer" controls playsinline referrerpolicy="no-referrer" class="w-full max-h-[45vh] rounded-xl shadow-2xl bg-black border border-gray-800"></video>
-            
-            <div class="mt-5 w-full">
-                <!-- 黑科技下载按钮 -->
-                <button id="magicDownloadBtn" class="w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2 shadow text-sm transition-all">
-                    <i class="fa-solid fa-download"></i> 提取保存视频 (防拦截)
-                </button>
-            </div>
-
-            <!-- 针对苹果系统的专项保存教程 -->
-            <div class="mt-4 text-center text-white space-y-3 bg-gray-900 p-5 rounded-2xl border border-gray-700 w-full">
-                <p class="font-bold text-lg text-emerald-400 mb-2"><i class="fa-solid fa-circle-down"></i> 保存说明 (必看)</p>
-                <div class="text-sm text-gray-300 text-left space-y-3">
-                    <p>🍎 <span class="font-bold text-white">苹果 iOS：</span></p>
-                    <ol class="list-decimal pl-5 space-y-1">
-                        <li>点击上方绿色的<span class="font-bold text-emerald-400">【提取保存视频】</span>按钮。</li>
-                        <li>系统会弹出询问框，请点击<span class="text-yellow-400 font-bold">「下载」</span>。</li>
-                        <li>点击 Safari 浏览器底部的<span class="text-blue-400 font-bold"> ⬇️ (蓝色下载图标)</span> 打开视频。</li>
-                        <li>点击左下角的分享图标 <i class="fa-solid fa-arrow-up-from-bracket mx-1 text-gray-400"></i>，选择<span class="text-yellow-400 font-bold">「存储视频」</span>即可进入相册！</li>
-                    </ol>
-                    <p class="mt-3 pt-3 border-t border-gray-700">🤖 <span class="font-bold text-white">安卓 Android：</span>点击上方按钮即可直接下载。</p>
                 </div>
             </div>
         </div>
@@ -138,6 +113,7 @@
                 <div id="parentText" class="tweet-text mb-3 text-[#0f1419] ml-[60px]"></div>
                 <div id="parentImages" class="ml-[60px] mb-3 hidden"></div>
             </div>
+
             <div class="flex items-center gap-3 mb-3 relative z-10 bg-white">
                 <img id="renderAvatar" class="w-12 h-12 rounded-full object-cover">
                 <div>
@@ -147,7 +123,9 @@
             </div>
             <div id="renderText" class="tweet-text mb-3 text-[#0f1419]"></div>
             <div id="renderImages" class="mb-3 hidden"></div>
+
             <div id="renderQuote" class="quote-box hidden"></div>
+
             <div class="text-[#536471] text-[15px] mt-3 pb-3 border-b border-[#cfd9de]">
                 <span id="renderTime"></span>
             </div>
@@ -200,76 +178,6 @@
             document.getElementById('linkInput').value = '';
             document.getElementById('resultArea').classList.add('hidden');
             document.getElementById('linkInput').focus();
-        }
-
-        function openVideoModal(url) {
-            const modal = document.getElementById('videoModal');
-            const player = document.getElementById('modalVideoPlayer');
-            const magicBtn = document.getElementById('magicDownloadBtn');
-            
-            player.src = url;
-            player.load(); 
-            
-            // 绑定下载黑科技事件
-            magicBtn.onclick = () => forceDownloadMedia(url, magicBtn);
-            
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
-
-        function closeVideoModal() {
-            const modal = document.getElementById('videoModal');
-            const player = document.getElementById('modalVideoPlayer');
-            player.pause();
-            player.removeAttribute('src'); 
-            player.load();
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-
-        // 【核心黑科技】：绕过推特跨域 + 欺骗苹果 Safari 的下载触发器
-        async function forceDownloadMedia(url, btnElement) {
-            const originalHtml = btnElement.innerHTML;
-            btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在提取视频流，请稍候...';
-            btnElement.disabled = true;
-            btnElement.classList.replace('bg-emerald-600', 'bg-gray-500');
-
-            try {
-                // 使用国际公共跨域代理，解决推特的防盗链导致无法被下载的问题
-                const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
-                const res = await fetch(proxyUrl);
-                if (!res.ok) throw new Error('代理服务器抓取失败');
-                
-                const originalBlob = await res.blob();
-                
-                // ！！！最核心一步！！！
-                // 强行把视频的属性改成 application/octet-stream（未知二进制文件）
-                // 这样苹果 Safari 就不敢自作主张去全屏播放它了，而是会直接弹出一个原生的“下载”询问框！
-                const forceDownloadBlob = new Blob([originalBlob], { type: 'application/octet-stream' });
-                const filename = `SonyaHolic_Video_${Date.now()}.mp4`;
-                
-                const blobUrl = window.URL.createObjectURL(forceDownloadBlob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                
-                // 清理垃圾
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(blobUrl);
-                
-                showToast('✅ 触发成功！请在系统弹窗中点击“下载”');
-            } catch (error) {
-                console.error(error);
-                // 代理挂掉的保底方案：新页面打开
-                showToast('⚠️ 视频过大，已为您在新页面打开');
-                window.open(url, '_blank');
-            } finally {
-                btnElement.innerHTML = originalHtml;
-                btnElement.disabled = false;
-                btnElement.classList.replace('bg-gray-500', 'bg-emerald-600');
-            }
         }
 
         function formatXText(text) {
@@ -363,7 +271,8 @@
                 mediaArea.classList.remove('hidden');
                 allMedia.forEach(media => {
                     if (media.type === 'video') {
-                        mediaGrid.innerHTML += `<div onclick="openVideoModal('${media.url}')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">打开视频提取</span></div></div>`;
+                        // 【终极方案】：使用 target="_blank" 在新标签页强制打开视频
+                        mediaGrid.innerHTML += `<a href="${media.url}" target="_blank" class="block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-arrow-up-right-from-square text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full mt-1">新网页打开保存</span></div></a>`;
                     } else {
                         mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none"><i class="fa-solid fa-hand-pointer"></i> 长按保存</div></div>`;
                     }
@@ -405,12 +314,14 @@
             const quoteBox = document.getElementById('renderQuote');
             if (tweet.quoteInfo) {
                 quoteBox.classList.remove('hidden');
+                
                 let qImgHtml = '';
                 const qImgCount = tweet.quoteInfo.imagesBase64 ? tweet.quoteInfo.imagesBase64.length : 0;
                 if (qImgCount > 0) {
                     qImgHtml = `<div class="mt-2 ${buildGridClass(qImgCount)}">` + 
                         tweet.quoteInfo.imagesBase64.slice(0, 4).map(b64 => `<img src="${b64}" />`).join('') + `</div>`;
                 }
+
                 quoteBox.innerHTML = `
                 <div class="flex items-center gap-2 mb-1">
                     <img class="w-5 h-5 rounded-full object-cover" src="${tweet.quoteInfo.avatar || ''}">
