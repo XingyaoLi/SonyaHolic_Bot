@@ -1,6 +1,6 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 
-// 将图片 URL 转换为 Base64，彻底解决前端手机截图的跨域拦截问题
+// 将图片 URL 转换为 Base64
 async function fetchImageAsBase64(url) {
     if (!url) return null;
     try {
@@ -23,17 +23,16 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. 提取推文 ID
         const match = link.match(/(?:x\.com|twitter\.com)\/[^/]+\/status\/(\d+)/);
         if (!match) return res.status(400).json({ error: '无法解析推文 ID' });
         const tweetId = match[1];
 
-        // 2. 调用开源免登录接口 vxtwitter 抓取数据 (毫秒级响应，绝对安全)
+        // 调用开源免登录接口抓取数据
         const vxRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${tweetId}`);
         if (!vxRes.ok) return res.status(404).json({ error: '抓取失败，推文可能已删除或账号为私密' });
         const tweetData = await vxRes.json();
 
-        // 3. 解析推文数据
+        // 解析推文数据
         const authorName = tweetData.user_name;
         const authorHandle = `@${tweetData.user_screen_name}`;
         const avatarUrl = tweetData.user_profile_image_url;
@@ -44,7 +43,6 @@ export default async function handler(req, res) {
         const imagesBase64 = [];
         const rawMediaUrls = [];
 
-        // 处理媒体文件 (下载缩略图用于前台截图，提供原图/视频链接用于下载)
         for (const media of mediaFiles) {
             rawMediaUrls.push({ type: media.type, url: media.url, thumbnail: media.thumbnail_url });
             if (media.type === 'image' || media.type === 'video') {
@@ -54,7 +52,6 @@ export default async function handler(req, res) {
             }
         }
 
-        // 处理引用推文 (Quote)
         let parentText = '';
         let quoteInfo = null;
         if (tweetData.qrtURL) {
@@ -77,12 +74,21 @@ export default async function handler(req, res) {
 
         const avatarBase64 = await fetchImageAsBase64(avatarUrl);
 
-        // 4. 调用 Gemini 进行专业翻译
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // 从云端环保变量获取
+        // 调用 Gemini 进行专业翻译
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
         if (!GEMINI_API_KEY) return res.status(500).json({ error: '云端未配置 Gemini API Key' });
 
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        
+        // 【关键修复 1】：解除安全审查限制，防止推特上的俚语或特定词汇被误伤拦截
+        const safetySettings = [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ];
+
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", safetySettings });
         
         const baseRule = `
 规则：
@@ -97,20 +103,33 @@ export default async function handler(req, res) {
         const prompt = `你是一个专业的翻译官。请按以下规则翻译这段推文：${baseRule}\n推文原文：\n"${originalText}"`;
         
         let translatedResult = '';
-        try {
-            const result = await model.generateContent(prompt);
-            translatedResult = result.response.text().trim();
-        } catch (e) {
-            translatedResult = "（AI 翻译暂时失败，请重试）";
+        let retries = 3; // 设置最大重试次数为 3 次
+
+        // 【关键修复 2】：加入自动重试机制
+        while (retries > 0) {
+            try {
+                const result = await model.generateContent(prompt);
+                translatedResult = result.response.text().trim();
+                break; // 翻译成功，跳出循环
+            } catch (e) {
+                retries--;
+                if (retries === 0) {
+                    translatedResult = "（AI 翻译暂时失败，可能触及API限制，请稍后再试）";
+                    console.error("AI 翻译彻底失败:", e);
+                } else {
+                    // 如果失败，强制等待 1.5 秒后再次尝试
+                    console.log(`翻译失败，正在重试... 剩余次数: ${retries}`);
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+            }
         }
 
-        // 5. 组装 GMT+8 时区的日期和排版文案
+        // 组装 GMT+8 时区的日期和排版文案
         const gmt8Date = new Date(new Date().getTime() + (8 * 60 * 60 * 1000));
         const dateStr = `${gmt8Date.getUTCFullYear()}${String(gmt8Date.getUTCMonth() + 1).padStart(2, '0')}${String(gmt8Date.getUTCDate()).padStart(2, '0')}`;
         
         const finalText = `${dateStr} X更新Sonya相关\n\n${translatedResult}\n\ncr：${authorName}`;
 
-        // 返回给手机前端
         res.status(200).json({
             success: true,
             tweet: {
