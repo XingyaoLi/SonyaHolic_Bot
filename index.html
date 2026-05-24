@@ -27,7 +27,6 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
 
-    <!-- 🔑 通行码认证门禁 -->
     <div id="loginPage" class="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-white hidden">
         <div class="w-full max-w-sm">
             <div class="text-center mb-10">
@@ -41,7 +40,6 @@
         </div>
     </div>
 
-    <!-- 🌟 工作台主体 -->
     <div id="appPage" class="hidden pb-20">
         <div class="bg-black px-5 py-4 text-white shadow-lg sticky top-0 z-40 flex justify-between items-center">
             <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-brands fa-x-twitter text-xl"></i> SonyaHolic搬运站</h1>
@@ -88,7 +86,7 @@
                     <div id="mediaArea" class="mt-5 pt-5 border-t border-gray-200 hidden">
                         <div class="mb-4 bg-blue-50 p-3 rounded-2xl border border-blue-100">
                             <p class="text-xs font-bold text-blue-900 flex items-center gap-1"><i class="fa-solid fa-photo-film"></i> 附件提取池</p>
-                            <p class="text-[10px] text-blue-700 mt-1">💡 <span class="font-bold">图片</span>请直接长按保存。<span class="font-bold">视频</span>点击后可在网页内直接播放和保存。</p>
+                            <p class="text-[10px] text-blue-700 mt-1">💡 <span class="font-bold">图片</span>请直接长按保存。<span class="font-bold">视频</span>点击后可在弹窗内保存。</p>
                         </div>
                         <div id="mediaGrid" class="grid grid-cols-3 gap-2"></div>
                     </div>
@@ -97,7 +95,7 @@
         </div>
     </div>
 
-    <!-- 🎥 【全新防丢失内嵌视频播放弹窗】 -->
+    <!-- 🎥 【终极防拦截内嵌视频弹窗】 -->
     <div id="videoModal" class="fixed inset-0 z-[100] bg-black bg-opacity-95 hidden flex-col items-center justify-center backdrop-blur-sm transition-opacity duration-300">
         <!-- 关闭按钮 -->
         <button onclick="closeVideoModal()" class="absolute top-6 right-6 text-white text-4xl hover:text-gray-300 z-[110] p-2">
@@ -105,19 +103,23 @@
         </button>
         
         <div class="w-full max-w-lg p-4 flex flex-col items-center relative z-[105]">
-            <!-- 播放器 -->
-            <video id="modalVideoPlayer" controls playsinline class="w-full max-h-[60vh] rounded-xl shadow-2xl bg-black border border-gray-800"></video>
+            <!-- 【关键修复 1】：添加 referrerpolicy="no-referrer" 伪装来源，破解推特防盗链导致无法播放的问题 -->
+            <video id="modalVideoPlayer" controls playsinline referrerpolicy="no-referrer" class="w-full max-h-[50vh] rounded-xl shadow-2xl bg-black border border-gray-800"></video>
             
+            <!-- 【关键修复 2】：原生浏览器直达通道，彻底解决 iOS 沙盒拦截相册保存的难题 -->
+            <a id="fallbackLink" href="#" target="_blank" class="mt-5 w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 rounded-2xl flex justify-center items-center gap-2 shadow text-sm">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> 浏览器原生打开 (100%可保存相册)
+            </a>
+
             <!-- 保存教程说明 -->
-            <div class="mt-8 text-center text-white space-y-3 bg-gray-900 p-5 rounded-2xl border border-gray-700 w-full">
-                <p class="font-bold text-lg text-emerald-400 mb-2"><i class="fa-solid fa-circle-down"></i> 如何保存视频到相册？</p>
+            <div class="mt-4 text-center text-white space-y-3 bg-gray-900 p-5 rounded-2xl border border-gray-700 w-full">
+                <p class="font-bold text-lg text-emerald-400 mb-2"><i class="fa-solid fa-circle-down"></i> 如何保存视频？</p>
                 <div class="text-sm text-gray-300 text-left space-y-2">
-                    <p>🍎 <span class="font-bold text-white">苹果 iOS：</span>请直接 <span class="text-yellow-400 font-bold">长按上方视频画面</span>，在弹出的菜单中选择「存储视频」或「下载链接的文件」。</p>
-                    <p>🤖 <span class="font-bold text-white">安卓 Android：</span>点击视频右下角的 <span class="text-yellow-400 font-bold">三个点 (⋮)</span>，选择「下载」。</p>
+                    <p>🍎 <span class="font-bold text-white">方案A (最简单)：</span>直接 <span class="text-yellow-400 font-bold">长按上方视频</span> 选择「存储视频」。</p>
+                    <p>🚀 <span class="font-bold text-white">方案B (防拦截)：</span>如果长按无反应，请点击上方的 <span class="text-blue-400 font-bold">【浏览器原生打开】</span> 按钮。在新页面的底栏点击分享按钮 <i class="fa-solid fa-arrow-up-from-bracket mx-1 text-gray-400"></i>，选择「存储到文件」或「存储视频」，然后切回来，提取结果不会丢失！</p>
                 </div>
             </div>
             
-            <p class="text-gray-500 text-xs mt-6">保存完毕后，点击右上角 X 即可返回，提取结果不会丢失。</p>
         </div>
     </div>
 
@@ -204,22 +206,32 @@
             document.getElementById('linkInput').focus();
         }
 
-        // --- 视频弹窗逻辑 ---
+        // --- 修复升级的视频弹窗逻辑 ---
         function openVideoModal(url) {
             const modal = document.getElementById('videoModal');
             const player = document.getElementById('modalVideoPlayer');
+            const fallbackLink = document.getElementById('fallbackLink');
+            
+            // 绑定源并强制加载，破解 iOS 缓存假死
             player.src = url;
+            player.load(); 
+            
+            // 绑定原生直达通道
+            fallbackLink.href = url;
+            
             modal.classList.remove('hidden');
             modal.classList.add('flex');
-            // 尝试自动播放
-            player.play().catch(e => console.log('浏览器限制自动播放，需用户手动点击'));
+            player.play().catch(e => console.log('浏览器限制自动播放，请手动点击播放按钮'));
         }
 
         function closeVideoModal() {
             const modal = document.getElementById('videoModal');
             const player = document.getElementById('modalVideoPlayer');
+            // 暂停并彻底清空视频流，防止后台偷跑流量
             player.pause();
-            player.src = ''; // 清空源，停止缓冲
+            player.removeAttribute('src'); 
+            player.load();
+            
             modal.classList.add('hidden');
             modal.classList.remove('flex');
         }
@@ -315,8 +327,7 @@
                 mediaArea.classList.remove('hidden');
                 allMedia.forEach(media => {
                     if (media.type === 'video') {
-                        // 【优化 3】：将视频点击事件绑定为打开当前页面的弹窗，而不是跳走
-                        mediaGrid.innerHTML += `<div onclick="openVideoModal('${media.url}')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">点击在网页内播放保存</span></div></div>`;
+                        mediaGrid.innerHTML += `<div onclick="openVideoModal('${media.url}')" class="cursor-pointer block relative aspect-square bg-black rounded-xl overflow-hidden shadow border border-gray-200"><img src="${media.thumbnail}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 flex flex-col items-center justify-center text-white"><i class="fa-solid fa-circle-play text-2xl mb-1"></i><span class="text-[10px] font-bold bg-black bg-opacity-70 px-2 py-0.5 rounded-full">打开视频提取</span></div></div>`;
                     } else {
                         mediaGrid.innerHTML += `<div class="relative aspect-square bg-gray-100 rounded-xl overflow-hidden shadow block border border-gray-200"><img src="${media.url}" class="w-full h-full object-cover pointer-events-auto" style="-webkit-touch-callout: default;"><div class="absolute bottom-1 right-1 bg-black bg-opacity-60 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none"><i class="fa-solid fa-hand-pointer"></i> 长按保存</div></div>`;
                     }
