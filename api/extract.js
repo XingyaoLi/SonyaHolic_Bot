@@ -5,15 +5,22 @@ export const config = {
     maxDuration: 60,
 };
 
+// 带双重防封机制的图片转码器（专为 OCR 准备）
 async function fetchImageAsBase64(url) {
     if (!url) return null;
     try {
-        const response = await fetch(url, {
+        let response = await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
             }
         });
+        
+        // 如果 IG 的 CDN 拒绝了直接访问，启用 allorigins 跨域穿透提取
+        if (!response.ok) {
+            response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+        }
+        
         if (!response.ok) return null;
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
@@ -76,7 +83,7 @@ export default async function handler(req, res) {
 6. 最终输出原文+空一行+翻译后的中文以及原有的表情符号。不要输出任何解释说明。
 7. 必须强行按照要求的排版格式输出。`;
 
-        // 处理单个链接的核心异步函数（加入单链防崩溃保护）
+        // 处理单个链接的核心异步函数
         const processSingleUrl = async (link) => {
             try {
                 let authorName = "";
@@ -113,6 +120,7 @@ export default async function handler(req, res) {
                         originalText = originalText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
                     }
                     
+                    // 核心黑科技：提取 Twitter 终极无损原图 (orig)
                     for (const media of (tweetData.media_extended || [])) {
                         let highResUrl = media.url;
                         let thumbnailUrl = media.thumbnail_url || media.url;
@@ -212,125 +220,119 @@ export default async function handler(req, res) {
                     if (!originalText || originalText.trim() === '') originalText = "[仅图片/视频，无文字]";
 
                 } else if (platform === 'IG') {
+                    // Instagram 极限破壁解析模块
                     isStory = link.includes('/stories/');
-                    isPost = link.includes('/p/') || link.includes('/reel/');
-
-                    let success = false;
+                    isPost = link.includes('/p/') || link.includes('/reel/') || link.includes('/tv/');
                     let lastErrorMsg = "";
 
-                    // 防封节点 1：Social-Downloader API
+                    authorHandle = "@unknown";
+                    authorName = "IG User";
+
+                    // 1. 提取全尺寸多媒体 (调用最新的 Cobalt 官方 API)
                     try {
-                        const apiUrl = `https://api.social-downloader.com/api/instagram/get?url=${encodeURIComponent(link)}`;
-                        const apiRes = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }});
-                        if (apiRes.ok) {
-                            const data = await apiRes.json();
-                            if (data && (data.media || data.media_list)) {
-                                authorHandle = `@${data.owner?.username || 'unknown'}`;
-                                authorName = data.owner?.full_name || authorHandle.replace('@', '');
-                                originalText = data.caption || "";
-                                
-                                const mediaItems = data.media_list || [data.media];
-                                for (const item of mediaItems) {
-                                    if(!item || !item.url) continue;
-                                    let mType = item.type || (item.url.includes('.mp4') ? 'video' : 'image');
-                                    rawUrls.push({ type: mType, url: item.url, thumbnail: item.thumbnail || item.url });
-                                    if (options.needTranslation && b64s.length < 2) {
-                                        const b64 = await fetchImageAsBase64(mType === 'image' ? item.url : (item.thumbnail || item.url));
-                                        if (b64) b64s.push(b64);
-                                    }
+                        const coRes = await fetch("https://api.cobalt.tools/api/json", {
+                            method: "POST",
+                            headers: {
+                                "Accept": "application/json",
+                                "Content-Type": "application/json",
+                                "Origin": "https://cobalt.tools",
+                                "Referer": "https://cobalt.tools/",
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                            },
+                            body: JSON.stringify({ url: link })
+                        });
+                        
+                        if (coRes.ok) {
+                            const coData = await coRes.json();
+                            if (coData.status !== "error") {
+                                if (coData.picker) {
+                                    coData.picker.forEach(p => rawUrls.push({ 
+                                        type: p.type === 'video' ? 'video' : 'image', 
+                                        url: p.url, 
+                                        thumbnail: p.thumb || p.url 
+                                    }));
+                                } else if (coData.url) {
+                                    rawUrls.push({ 
+                                        type: (link.includes('reel') || coData.url.includes('.mp4')) ? 'video' : 'image', 
+                                        url: coData.url, 
+                                        thumbnail: coData.url 
+                                    });
                                 }
-                                if (rawUrls.length > 0) success = true;
                             }
                         }
-                    } catch(e) { lastErrorMsg += `[节点1: ${e.message}]`; }
+                    } catch(e) { lastErrorMsg += `[提取媒体错误: ${e.message}]`; }
 
-                    // 防封节点 2：AllOrigins 跨域穿透提取 ddinstagram 源码
-                    if (!success) {
+                    // 2. 提取配文和作者 (解析 IG 免登录的 Embed 页面核心 JSON 数据)
+                    if (isPost) {
                         try {
-                            const ddUrl = link.replace(/(https?:\/\/)?(www\.)?instagram\.com/, 'https://ddinstagram.com');
-                            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(ddUrl)}`;
-                            const res = await fetch(proxyUrl);
-                            if (res.ok) {
-                                const json = await res.json();
-                                if (json && json.contents) {
-                                    const html = json.contents;
+                            const shortcodeMatch = link.match(/(?:p|reel|tv)\/([^/?#&]+)/);
+                            if (shortcodeMatch) {
+                                const embedUrl = `https://www.instagram.com/p/${shortcodeMatch[1]}/embed/captioned/`;
+                                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(embedUrl)}`;
+                                const embedRes = await fetch(proxyUrl);
+                                
+                                if (embedRes.ok) {
+                                    const embedData = await embedRes.json();
+                                    const html = embedData.contents;
                                     
-                                    const handleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
-                                    if (handleMatch) {
-                                        const hMatch = handleMatch[1].match(/@([a-zA-Z0-9_.]+)/);
-                                        authorHandle = hMatch ? `@${hMatch[1]}` : `@${handleMatch[1].split(' ')[0]}`;
-                                        authorName = authorHandle.replace('@', '');
-                                    }
-
-                                    const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
-                                    if (descMatch) {
-                                        originalText = descMatch[1].replace(/\\n/g, '\n').trim();
-                                        if (originalText.includes('likes,') && originalText.includes('comments')) {
-                                            originalText = originalText.split('-').slice(1).join('-').trim();
-                                        }
-                                    }
-
-                                    const videoMatch = html.match(/<meta property="og:video" content="([^"]+)"/);
-                                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-                                    
-                                    if (videoMatch) {
-                                        rawUrls.push({ type: 'video', url: videoMatch[1], thumbnail: imageMatch ? imageMatch[1] : '' });
-                                        if (options.needTranslation && imageMatch) {
-                                            const b64 = await fetchImageAsBase64(imageMatch[1]);
-                                            if (b64) b64s.push(b64);
-                                        }
-                                    } else if (imageMatch) {
-                                        rawUrls.push({ type: 'image', url: imageMatch[1], thumbnail: imageMatch[1] });
-                                        if (options.needTranslation) {
-                                            const b64 = await fetchImageAsBase64(imageMatch[1]);
-                                            if (b64) b64s.push(b64);
-                                        }
-                                    }
-                                    if (rawUrls.length > 0) success = true;
-                                }
-                            }
-                        } catch(e) { lastErrorMsg += `[节点2: ${e.message}]`; }
-                    }
-
-                    // 防封节点 3：Cobalt 终极解析器 (仅获取纯净无水印原画媒体，放弃配文)
-                    if (!success) {
-                        try {
-                            const coRes = await fetch("https://co.wuk.sh/api/json", {
-                                method: "POST",
-                                headers: { "Accept": "application/json", "Content-Type": "application/json" },
-                                body: JSON.stringify({ url: link })
-                            });
-                            if (coRes.ok) {
-                                const coData = await coRes.json();
-                                if (coData && coData.status === "success") {
-                                    if (coData.picker) {
-                                        coData.picker.forEach(p => rawUrls.push({ type: p.url.includes('.mp4') ? 'video' : 'image', url: p.url, thumbnail: p.thumb || p.url }));
-                                    } else if (coData.url) {
-                                        rawUrls.push({ type: coData.url.includes('.mp4') ? 'video' : 'image', url: coData.url, thumbnail: coData.url });
-                                    }
-                                    
-                                    if (rawUrls.length > 0) {
-                                        success = true;
-                                        authorHandle = "Instagram User";
-                                        authorName = "IG_User";
-                                        originalText = "[已使用备用流媒体节点，无法提取该条推文的配文文字]";
+                                    // 查找 IG 官方在网页中下发的原生 JSON 包
+                                    const jsonMatch = html.match(/window\.__additionalDataLoaded\('extra',\s*({.+?})\);/);
+                                    if (jsonMatch) {
+                                        const igData = JSON.parse(jsonMatch[1]).shortcode_media;
                                         
-                                        if (options.needTranslation && rawUrls[0].type === 'image') {
-                                            const b64 = await fetchImageAsBase64(rawUrls[0].url);
-                                            if (b64) b64s.push(b64);
+                                        if (igData.owner) {
+                                            authorHandle = `@${igData.owner.username}`;
+                                            authorName = igData.owner.full_name || igData.owner.username;
                                         }
+                                        
+                                        if (igData.edge_media_to_caption?.edges?.length > 0) {
+                                            originalText = igData.edge_media_to_caption.edges[0].node.text;
+                                        }
+                                        
+                                        // 如果前面的 Cobalt 获取媒体失败，启用 Embed 数据作为保底抓图
+                                        if (rawUrls.length === 0) {
+                                            if (igData.edge_sidecar_to_children) {
+                                                igData.edge_sidecar_to_children.edges.forEach(edge => {
+                                                    const node = edge.node;
+                                                    rawUrls.push({
+                                                        type: node.is_video ? 'video' : 'image',
+                                                        url: node.video_url || node.display_url,
+                                                        thumbnail: node.display_url
+                                                    });
+                                                });
+                                            } else {
+                                                rawUrls.push({
+                                                    type: igData.is_video ? 'video' : 'image',
+                                                    url: igData.video_url || igData.display_url,
+                                                    thumbnail: igData.display_url
+                                                });
+                                            }
+                                        }
+                                    } else {
+                                        // 备用正则匹配
+                                        const authorMatch = html.match(/"owner_username":"([^"]+)"/);
+                                        if (authorMatch) authorHandle = `@${authorMatch[1]}`;
+                                        const captionMatch = html.match(/"caption":"([^"]+)"/);
+                                        if (captionMatch) originalText = captionMatch[1].replace(/\\n/g, '\n').replace(/\\/g, '');
                                     }
                                 }
                             }
-                        } catch(e) { lastErrorMsg += `[节点3: ${e.message}]`; }
+                        } catch(e) { lastErrorMsg += `[提取配文错误: ${e.message}]`; }
                     }
 
-                    if (!success) {
-                        throw new Error(`IG防火墙拦截，节点已全部耗尽。${lastErrorMsg}`);
+                    if (rawUrls.length === 0 && !originalText) {
+                        throw new Error(`IG防爬虫严格拦截或内容为私密。(${lastErrorMsg})`);
+                    }
+
+                    // 准备 OCR 缩略图
+                    for (const item of rawUrls) {
+                        if (options.needTranslation && b64s.length < 2) {
+                            const b64 = await fetchImageAsBase64(item.thumbnail || item.url);
+                            if (b64) b64s.push(b64);
+                        }
                     }
                 }
 
-                const avatarBase64 = (platform === 'X' && options.needScreenshot) ? await fetchImageAsBase64(avatarUrl) : null;
                 let translatedResult = '';
 
                 if (options.needTranslation && model) {
@@ -347,6 +349,7 @@ export default async function handler(req, res) {
                         }
                         parts = [{ text: prompt }];
                     } else {
+                        // IG 模式：针对快拍且无文字的情况启用 OCR
                         if (isStory && (!originalText || originalText.trim() === '') && b64s.length > 0) {
                             prompt = `这是一张Instagram快拍的截图/封面。请提取图片中出现的文字并进行翻译。\n如果图片中没有任何有效文字，请直接回复“[图片无文字]”。\n\n${igBaseRule}`;
                             parts = [
@@ -392,11 +395,10 @@ export default async function handler(req, res) {
                 };
 
             } catch (error) {
-                // 【核心修复】：单条链接软着陆机制，防止一挂全挂
                 console.error("Url processing error:", error.message);
                 return {
                     originalText: `【抓取失败】${error.message}`,
-                    translation: `❌ 提取此链接失败：${error.message}。\n(可能是由于账号设为私密，或 Instagram 云端防火墙波动拦截，请稍后再试)`,
+                    translation: `❌ 提取此链接失败：${error.message}。`,
                     authorName: "Unknown",
                     authorHandle: "@unknown",
                     avatarBase64: null,
