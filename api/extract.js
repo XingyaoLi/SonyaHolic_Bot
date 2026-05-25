@@ -8,7 +8,6 @@ export const config = {
 async function fetchImageAsBase64(url) {
     if (!url) return null;
     try {
-        // 添加仿真 UA 头，防止图片 CDN 拒绝云端 IP 访问
         const response = await fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
@@ -77,291 +76,341 @@ export default async function handler(req, res) {
 6. 最终输出原文+空一行+翻译后的中文以及原有的表情符号。不要输出任何解释说明。
 7. 必须强行按照要求的排版格式输出。`;
 
-        // 处理单个链接的核心异步函数
+        // 处理单个链接的核心异步函数（加入单链防崩溃保护）
         const processSingleUrl = async (link) => {
-            let authorName = "";
-            let authorHandle = "";
-            let avatarUrl = "";
-            let originalText = "";
-            let timestamp = Date.now();
-            let viewsCount = 0;
-            let b64s = [];
-            let rawUrls = [];
-            let quoteInfo = null;
-            let isReply = false;
-            let parentInfo = null;
-            let isPost = false;
-            let isStory = false;
-
-            if (platform === 'X') {
-                const match = link.match(/(?:x\.com|twitter\.com)\/[^/]+\/status\/(\d+)/);
-                if (!match) throw new Error('X 链接解析失败');
-                const tweetId = match[1];
-
-                const vxRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${tweetId}`);
-                if (!vxRes.ok) throw new Error('抓取失败');
-                const tweetData = await vxRes.json();
-
-                authorName = tweetData.user_name;
-                authorHandle = `@${tweetData.user_screen_name}`;
-                avatarUrl = tweetData.user_profile_image_url;
-                originalText = tweetData.text || '';
-                timestamp = tweetData.date_epoch * 1000;
-                viewsCount = tweetData.views || tweetData.likes || 0; 
-
-                if (tweetData.in_reply_to_status_id_str || (tweetData.conversationID && tweetData.conversationID !== tweetId)) {
-                    originalText = originalText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
-                }
-                
-                // 核心黑科技：提取 Twitter 终极无损原图 (orig)
-                for (const media of (tweetData.media_extended || [])) {
-                    let highResUrl = media.url;
-                    let thumbnailUrl = media.thumbnail_url || media.url;
-
-                    if (media.type === 'image' && highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
-                        // 剔除现有的格式后缀，强行挂载 name=orig 原图参数
-                        const extMatch = highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i);
-                        const ext = extMatch[2];
-                        highResUrl = highResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
-                        thumbnailUrl = highResUrl;
-                    }
-
-                    rawUrls.push({ type: media.type, url: highResUrl, thumbnail: thumbnailUrl });
-                    if (options.needScreenshot || options.needTranslation) {
-                        const previewUrl = media.type === 'image' ? highResUrl : thumbnailUrl;
-                        const b64 = await fetchImageAsBase64(previewUrl);
-                        if (b64) b64s.push(b64);
-                    }
-                }
-                
-                const parentId = (tweetData.conversationID && tweetData.conversationID !== tweetId) ? tweetData.conversationID : null;
-                if (parentId) {
-                    try {
-                        const parentRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${parentId}`);
-                        if (parentRes.ok) {
-                            const pData = await parentRes.json();
-                            isReply = true;
-                            let pText = (pData.text || '').replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
-                            if (!pText) pText = "[仅图片/视频，无文字]";
-                            
-                            let pB64s = [];
-                            let pRaws = [];
-                            for (const media of (pData.media_extended || [])) {
-                                let pHighResUrl = media.url;
-                                let pThumbUrl = media.thumbnail_url || media.url;
-
-                                if (media.type === 'image' && pHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
-                                    const ext = pHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
-                                    pHighResUrl = pHighResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
-                                    pThumbUrl = pHighResUrl;
-                                }
-
-                                pRaws.push({ type: media.type, url: pHighResUrl, thumbnail: pThumbUrl });
-                                if (options.needScreenshot) {
-                                    const b64 = await fetchImageAsBase64(media.type === 'image' ? pHighResUrl : pThumbUrl);
-                                    if (b64) pB64s.push(b64);
-                                }
-                            }
-                            parentInfo = {
-                                name: pData.user_name,
-                                handle: `@${pData.user_screen_name}`,
-                                avatarBase64: options.needScreenshot ? await fetchImageAsBase64(pData.user_profile_image_url) : null,
-                                text: pText,
-                                imagesBase64: pB64s,
-                                rawMediaUrls: pRaws
-                            };
-                        }
-                    } catch (e) {}
-                }
-
-                if (!isReply && tweetData.qrtURL) {
-                    try {
-                        const qrtId = tweetData.qrtURL.split('/').pop();
-                        const qrtRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${qrtId}`);
-                        if (qrtRes.ok) {
-                            const qrtData = await qrtRes.json();
-                            let qText = qrtData.text || '[仅图片/视频，无文字]';
-                            let qB64s = [];
-                            let qRaws = [];
-                            for (const media of (qrtData.media_extended || [])) {
-                                let qHighResUrl = media.url;
-                                let qThumbUrl = media.thumbnail_url || media.url;
-
-                                if (media.type === 'image' && qHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
-                                    const ext = qHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
-                                    qHighResUrl = qHighResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
-                                    qThumbUrl = qHighResUrl;
-                                }
-
-                                qRaws.push({ type: media.type, url: qHighResUrl, thumbnail: qThumbUrl });
-                                if (options.needScreenshot) {
-                                    const b64 = await fetchImageAsBase64(media.type === 'image' ? qHighResUrl : qThumbUrl);
-                                    if (b64) qB64s.push(b64);
-                                }
-                            }
-                            quoteInfo = {
-                                name: qrtData.user_name,
-                                handle: `@${qrtData.user_screen_name}`,
-                                avatar: options.needScreenshot ? await fetchImageAsBase64(qrtData.user_profile_image_url) : null,
-                                text: qText,
-                                imagesBase64: qB64s,
-                                rawMediaUrls: qRaws
-                            };
-                        }
-                    } catch (e) {}
-                }
-
-                if (!originalText || originalText.trim() === '') originalText = "[仅图片/视频，无文字]";
-
-            } else if (platform === 'IG') {
-                isStory = link.includes('/stories/');
-                isPost = link.includes('/p/') || link.includes('/reel/');
-
-                let apiData = null;
-
-                // 通道 1: 高稳定性的免登录 API (突破 Cloudflare 防护，直取最高画质)
-                try {
-                    const apiUrl = `https://api.social-downloader.com/api/instagram/get?url=${encodeURIComponent(link)}`;
-                    const apiRes = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }});
-                    if (apiRes.ok) {
-                        const data = await apiRes.json();
-                        if (data && (data.media || data.media_list)) {
-                            apiData = data;
-                        }
-                    }
-                } catch(e) {}
-
-                if (apiData) {
-                    authorHandle = `@${apiData.owner?.username || 'unknown'}`;
-                    authorName = apiData.owner?.full_name || authorHandle.replace('@', '');
-                    originalText = apiData.caption || "";
-                    
-                    const mediaItems = apiData.media_list || [apiData.media];
-                    for (const item of mediaItems) {
-                        if(!item) continue;
-                        let highResUrl = item.url;
-                        let thumbUrl = item.thumbnail || item.url;
-                        let mType = item.type || (item.url.includes('.mp4') ? 'video' : 'image');
-                        
-                        rawUrls.push({ type: mType, url: highResUrl, thumbnail: thumbUrl });
-                        if (options.needTranslation && b64s.length < 2) {
-                            const b64 = await fetchImageAsBase64(mType === 'image' ? highResUrl : thumbUrl);
-                            if (b64) b64s.push(b64);
-                        }
-                    }
-                } else {
-                    // 通道 2: 伪装版 ddinstagram (备用防线)
-                    const ddUrl = link.replace(/(https?:\/\/)?(www\.)?instagram\.com/, 'https://ddinstagram.com');
-                    const res = await fetch(ddUrl, { 
-                        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
-                    });
-                    if (!res.ok) throw new Error('IG 代理节点被限流，请稍后重试');
-                    const html = await res.text();
-
-                    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
-                    if (titleMatch) {
-                        const handleMatch = titleMatch[1].match(/@([a-zA-Z0-9_.]+)/);
-                        if (handleMatch) authorHandle = `@${handleMatch[1]}`;
-                        else authorHandle = `@${titleMatch[1].split(' ')[0]}`;
-                        authorName = authorHandle.replace('@', '');
-                    } else {
-                        const urlHandleMatch = link.match(/instagram\.com\/([a-zA-Z0-9_.]+)/);
-                        if (urlHandleMatch && !['p','reel','stories'].includes(urlHandleMatch[1])) {
-                            authorHandle = `@${urlHandleMatch[1]}`;
-                        } else if (isStory) {
-                            const storyMatch = link.match(/stories\/([a-zA-Z0-9_.]+)/);
-                            if (storyMatch) authorHandle = `@${storyMatch[1]}`;
-                        }
-                        authorName = authorHandle.replace('@', '');
-                    }
-
-                    const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
-                    if (descMatch) {
-                        originalText = descMatch[1].replace(/\\n/g, '\n').trim();
-                        if (originalText.includes('likes,') && originalText.includes('comments')) {
-                            originalText = originalText.split('-').slice(1).join('-').trim();
-                        }
-                    }
-
-                    const videoMatch = html.match(/<meta property="og:video" content="([^"]+)"/);
-                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-                    
-                    if (videoMatch) {
-                        rawUrls.push({ type: 'video', url: videoMatch[1], thumbnail: imageMatch ? imageMatch[1] : '' });
-                        if (options.needTranslation && imageMatch) {
-                            const b64 = await fetchImageAsBase64(imageMatch[1]);
-                            if (b64) b64s.push(b64);
-                        }
-                    } else if (imageMatch) {
-                        rawUrls.push({ type: 'image', url: imageMatch[1], thumbnail: imageMatch[1] });
-                        if (options.needTranslation) {
-                            const b64 = await fetchImageAsBase64(imageMatch[1]);
-                            if (b64) b64s.push(b64);
-                        }
-                    }
-                }
-            }
-
-            const avatarBase64 = (platform === 'X' && options.needScreenshot) ? await fetchImageAsBase64(avatarUrl) : null;
-            let translatedResult = '';
-
-            if (options.needTranslation && model) {
-                let prompt = "";
-                let parts = [];
+            try {
+                let authorName = "";
+                let authorHandle = "";
+                let avatarUrl = "";
+                let originalText = "";
+                let timestamp = Date.now();
+                let viewsCount = 0;
+                let b64s = [];
+                let rawUrls = [];
+                let quoteInfo = null;
+                let isReply = false;
+                let parentInfo = null;
+                let isPost = false;
+                let isStory = false;
 
                 if (platform === 'X') {
-                    if (isReply) {
-                        prompt = `请翻译这段对话：${xBaseRule}\n要求排版：\n💬：[原贴译文]\n\n🐰：[回复译文]\n原贴内容：\n"${parentInfo?.text || ''}"\n回复内容：\n"${originalText}"`;
-                    } else if (quoteInfo) {
-                        prompt = `请翻译这段推文：${xBaseRule}\n要求排版：主推文译文在前，空一行，引用部分加前缀“转发内容：”。\n主推文：\n"${originalText}"\n引用推文：\n"${quoteInfo.text}"`;
-                    } else {
-                        prompt = `请翻译这段推文：${xBaseRule}\n推文：\n"${originalText}"`;
-                    }
-                    parts = [{ text: prompt }];
-                } else {
-                    if (isStory && (!originalText || originalText.trim() === '') && b64s.length > 0) {
-                        prompt = `这是一张Instagram快拍的截图/封面。请提取图片中出现的文字并进行翻译。\n如果图片中没有任何有效文字，请直接回复“[图片无文字]”。\n\n${igBaseRule}`;
-                        parts = [
-                            { text: prompt },
-                            { inlineData: { data: b64s[0].split(',')[1], mimeType: "image/jpeg" } }
-                        ];
-                    } else {
-                        prompt = `请翻译这段Instagram内容：${igBaseRule}\n原文：\n"${originalText || '[无文字]'}"`;
-                        parts = [{ text: prompt }];
-                    }
-                }
-                
-                let retries = 2;
-                while (retries > 0) {
-                    try {
-                        const result = await model.generateContent(parts);
-                        translatedResult = result.response.text().trim();
-                        break;
-                    } catch (e) {
-                        retries--;
-                        if (retries === 0) {
-                            translatedResult = `（AI 翻译失败: ${e.message}）`;
-                        } else await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
+                    const match = link.match(/(?:x\.com|twitter\.com)\/[^/]+\/status\/(\d+)/);
+                    if (!match) throw new Error('X 链接解析失败');
+                    const tweetId = match[1];
 
-            return {
-                originalText, 
-                translation: translatedResult,
-                authorName,
-                authorHandle,
-                avatarBase64,
-                imagesBase64: b64s,
-                rawMediaUrls: rawUrls,
-                quoteInfo,
-                isReply,
-                parentInfo,
-                timestamp,
-                viewsCount,
-                isPost,
-                isStory
-            };
+                    const vxRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${tweetId}`);
+                    if (!vxRes.ok) throw new Error('抓取失败');
+                    const tweetData = await vxRes.json();
+
+                    authorName = tweetData.user_name;
+                    authorHandle = `@${tweetData.user_screen_name}`;
+                    avatarUrl = tweetData.user_profile_image_url;
+                    originalText = tweetData.text || '';
+                    timestamp = tweetData.date_epoch * 1000;
+                    viewsCount = tweetData.views || tweetData.likes || 0; 
+
+                    if (tweetData.in_reply_to_status_id_str || (tweetData.conversationID && tweetData.conversationID !== tweetId)) {
+                        originalText = originalText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
+                    }
+                    
+                    for (const media of (tweetData.media_extended || [])) {
+                        let highResUrl = media.url;
+                        let thumbnailUrl = media.thumbnail_url || media.url;
+
+                        if (media.type === 'image' && highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                            const extMatch = highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i);
+                            const ext = extMatch[2];
+                            highResUrl = highResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                            thumbnailUrl = highResUrl;
+                        }
+
+                        rawUrls.push({ type: media.type, url: highResUrl, thumbnail: thumbnailUrl });
+                        if (options.needScreenshot || options.needTranslation) {
+                            const previewUrl = media.type === 'image' ? highResUrl : thumbnailUrl;
+                            const b64 = await fetchImageAsBase64(previewUrl);
+                            if (b64) b64s.push(b64);
+                        }
+                    }
+                    
+                    const parentId = (tweetData.conversationID && tweetData.conversationID !== tweetId) ? tweetData.conversationID : null;
+                    if (parentId) {
+                        try {
+                            const parentRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${parentId}`);
+                            if (parentRes.ok) {
+                                const pData = await parentRes.json();
+                                isReply = true;
+                                let pText = (pData.text || '').replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
+                                if (!pText) pText = "[仅图片/视频，无文字]";
+                                
+                                let pB64s = [];
+                                let pRaws = [];
+                                for (const media of (pData.media_extended || [])) {
+                                    let pHighResUrl = media.url;
+                                    let pThumbUrl = media.thumbnail_url || media.url;
+
+                                    if (media.type === 'image' && pHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                                        const ext = pHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
+                                        pHighResUrl = pHighResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                                        pThumbUrl = pHighResUrl;
+                                    }
+
+                                    pRaws.push({ type: media.type, url: pHighResUrl, thumbnail: pThumbUrl });
+                                    if (options.needScreenshot) {
+                                        const b64 = await fetchImageAsBase64(media.type === 'image' ? pHighResUrl : pThumbUrl);
+                                        if (b64) pB64s.push(b64);
+                                    }
+                                }
+                                parentInfo = {
+                                    name: pData.user_name,
+                                    handle: `@${pData.user_screen_name}`,
+                                    avatarBase64: options.needScreenshot ? await fetchImageAsBase64(pData.user_profile_image_url) : null,
+                                    text: pText,
+                                    imagesBase64: pB64s,
+                                    rawMediaUrls: pRaws
+                                };
+                            }
+                        } catch (e) {}
+                    }
+
+                    if (!isReply && tweetData.qrtURL) {
+                        try {
+                            const qrtId = tweetData.qrtURL.split('/').pop();
+                            const qrtRes = await fetch(`https://api.vxtwitter.com/Twitter/status/${qrtId}`);
+                            if (qrtRes.ok) {
+                                const qrtData = await qrtRes.json();
+                                let qText = qrtData.text || '[仅图片/视频，无文字]';
+                                let qB64s = [];
+                                let qRaws = [];
+                                for (const media of (qrtData.media_extended || [])) {
+                                    let qHighResUrl = media.url;
+                                    let qThumbUrl = media.thumbnail_url || media.url;
+
+                                    if (media.type === 'image' && qHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                                        const ext = qHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
+                                        qHighResUrl = qHighResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                                        qThumbUrl = qHighResUrl;
+                                    }
+
+                                    qRaws.push({ type: media.type, url: qHighResUrl, thumbnail: qThumbUrl });
+                                    if (options.needScreenshot) {
+                                        const b64 = await fetchImageAsBase64(media.type === 'image' ? qHighResUrl : qThumbUrl);
+                                        if (b64) qB64s.push(b64);
+                                    }
+                                }
+                                quoteInfo = {
+                                    name: qrtData.user_name,
+                                    handle: `@${qrtData.user_screen_name}`,
+                                    avatar: options.needScreenshot ? await fetchImageAsBase64(qrtData.user_profile_image_url) : null,
+                                    text: qText,
+                                    imagesBase64: qB64s,
+                                    rawMediaUrls: qRaws
+                                };
+                            }
+                        } catch (e) {}
+                    }
+
+                    if (!originalText || originalText.trim() === '') originalText = "[仅图片/视频，无文字]";
+
+                } else if (platform === 'IG') {
+                    isStory = link.includes('/stories/');
+                    isPost = link.includes('/p/') || link.includes('/reel/');
+
+                    let success = false;
+                    let lastErrorMsg = "";
+
+                    // 防封节点 1：Social-Downloader API
+                    try {
+                        const apiUrl = `https://api.social-downloader.com/api/instagram/get?url=${encodeURIComponent(link)}`;
+                        const apiRes = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }});
+                        if (apiRes.ok) {
+                            const data = await apiRes.json();
+                            if (data && (data.media || data.media_list)) {
+                                authorHandle = `@${data.owner?.username || 'unknown'}`;
+                                authorName = data.owner?.full_name || authorHandle.replace('@', '');
+                                originalText = data.caption || "";
+                                
+                                const mediaItems = data.media_list || [data.media];
+                                for (const item of mediaItems) {
+                                    if(!item || !item.url) continue;
+                                    let mType = item.type || (item.url.includes('.mp4') ? 'video' : 'image');
+                                    rawUrls.push({ type: mType, url: item.url, thumbnail: item.thumbnail || item.url });
+                                    if (options.needTranslation && b64s.length < 2) {
+                                        const b64 = await fetchImageAsBase64(mType === 'image' ? item.url : (item.thumbnail || item.url));
+                                        if (b64) b64s.push(b64);
+                                    }
+                                }
+                                if (rawUrls.length > 0) success = true;
+                            }
+                        }
+                    } catch(e) { lastErrorMsg += `[节点1: ${e.message}]`; }
+
+                    // 防封节点 2：AllOrigins 跨域穿透提取 ddinstagram 源码
+                    if (!success) {
+                        try {
+                            const ddUrl = link.replace(/(https?:\/\/)?(www\.)?instagram\.com/, 'https://ddinstagram.com');
+                            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(ddUrl)}`;
+                            const res = await fetch(proxyUrl);
+                            if (res.ok) {
+                                const json = await res.json();
+                                if (json && json.contents) {
+                                    const html = json.contents;
+                                    
+                                    const handleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+                                    if (handleMatch) {
+                                        const hMatch = handleMatch[1].match(/@([a-zA-Z0-9_.]+)/);
+                                        authorHandle = hMatch ? `@${hMatch[1]}` : `@${handleMatch[1].split(' ')[0]}`;
+                                        authorName = authorHandle.replace('@', '');
+                                    }
+
+                                    const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
+                                    if (descMatch) {
+                                        originalText = descMatch[1].replace(/\\n/g, '\n').trim();
+                                        if (originalText.includes('likes,') && originalText.includes('comments')) {
+                                            originalText = originalText.split('-').slice(1).join('-').trim();
+                                        }
+                                    }
+
+                                    const videoMatch = html.match(/<meta property="og:video" content="([^"]+)"/);
+                                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+                                    
+                                    if (videoMatch) {
+                                        rawUrls.push({ type: 'video', url: videoMatch[1], thumbnail: imageMatch ? imageMatch[1] : '' });
+                                        if (options.needTranslation && imageMatch) {
+                                            const b64 = await fetchImageAsBase64(imageMatch[1]);
+                                            if (b64) b64s.push(b64);
+                                        }
+                                    } else if (imageMatch) {
+                                        rawUrls.push({ type: 'image', url: imageMatch[1], thumbnail: imageMatch[1] });
+                                        if (options.needTranslation) {
+                                            const b64 = await fetchImageAsBase64(imageMatch[1]);
+                                            if (b64) b64s.push(b64);
+                                        }
+                                    }
+                                    if (rawUrls.length > 0) success = true;
+                                }
+                            }
+                        } catch(e) { lastErrorMsg += `[节点2: ${e.message}]`; }
+                    }
+
+                    // 防封节点 3：Cobalt 终极解析器 (仅获取纯净无水印原画媒体，放弃配文)
+                    if (!success) {
+                        try {
+                            const coRes = await fetch("https://co.wuk.sh/api/json", {
+                                method: "POST",
+                                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                                body: JSON.stringify({ url: link })
+                            });
+                            if (coRes.ok) {
+                                const coData = await coRes.json();
+                                if (coData && coData.status === "success") {
+                                    if (coData.picker) {
+                                        coData.picker.forEach(p => rawUrls.push({ type: p.url.includes('.mp4') ? 'video' : 'image', url: p.url, thumbnail: p.thumb || p.url }));
+                                    } else if (coData.url) {
+                                        rawUrls.push({ type: coData.url.includes('.mp4') ? 'video' : 'image', url: coData.url, thumbnail: coData.url });
+                                    }
+                                    
+                                    if (rawUrls.length > 0) {
+                                        success = true;
+                                        authorHandle = "Instagram User";
+                                        authorName = "IG_User";
+                                        originalText = "[已使用备用流媒体节点，无法提取该条推文的配文文字]";
+                                        
+                                        if (options.needTranslation && rawUrls[0].type === 'image') {
+                                            const b64 = await fetchImageAsBase64(rawUrls[0].url);
+                                            if (b64) b64s.push(b64);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch(e) { lastErrorMsg += `[节点3: ${e.message}]`; }
+                    }
+
+                    if (!success) {
+                        throw new Error(`IG防火墙拦截，节点已全部耗尽。${lastErrorMsg}`);
+                    }
+                }
+
+                const avatarBase64 = (platform === 'X' && options.needScreenshot) ? await fetchImageAsBase64(avatarUrl) : null;
+                let translatedResult = '';
+
+                if (options.needTranslation && model) {
+                    let prompt = "";
+                    let parts = [];
+
+                    if (platform === 'X') {
+                        if (isReply) {
+                            prompt = `请翻译这段对话：${xBaseRule}\n要求排版：\n💬：[原贴译文]\n\n🐰：[回复译文]\n原贴内容：\n"${parentInfo?.text || ''}"\n回复内容：\n"${originalText}"`;
+                        } else if (quoteInfo) {
+                            prompt = `请翻译这段推文：${xBaseRule}\n要求排版：主推文译文在前，空一行，引用部分加前缀“转发内容：”。\n主推文：\n"${originalText}"\n引用推文：\n"${quoteInfo.text}"`;
+                        } else {
+                            prompt = `请翻译这段推文：${xBaseRule}\n推文：\n"${originalText}"`;
+                        }
+                        parts = [{ text: prompt }];
+                    } else {
+                        if (isStory && (!originalText || originalText.trim() === '') && b64s.length > 0) {
+                            prompt = `这是一张Instagram快拍的截图/封面。请提取图片中出现的文字并进行翻译。\n如果图片中没有任何有效文字，请直接回复“[图片无文字]”。\n\n${igBaseRule}`;
+                            parts = [
+                                { text: prompt },
+                                { inlineData: { data: b64s[0].split(',')[1], mimeType: "image/jpeg" } }
+                            ];
+                        } else {
+                            prompt = `请翻译这段Instagram内容：${igBaseRule}\n原文：\n"${originalText || '[无文字]'}"`;
+                            parts = [{ text: prompt }];
+                        }
+                    }
+                    
+                    let retries = 2;
+                    while (retries > 0) {
+                        try {
+                            const result = await model.generateContent(parts);
+                            translatedResult = result.response.text().trim();
+                            break;
+                        } catch (e) {
+                            retries--;
+                            if (retries === 0) {
+                                translatedResult = `（AI 翻译失败: ${e.message}）`;
+                            } else await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                    }
+                }
+
+                return {
+                    originalText, 
+                    translation: translatedResult,
+                    authorName,
+                    authorHandle,
+                    avatarBase64,
+                    imagesBase64: b64s,
+                    rawMediaUrls: rawUrls,
+                    quoteInfo,
+                    isReply,
+                    parentInfo,
+                    timestamp,
+                    viewsCount,
+                    isPost,
+                    isStory
+                };
+
+            } catch (error) {
+                // 【核心修复】：单条链接软着陆机制，防止一挂全挂
+                console.error("Url processing error:", error.message);
+                return {
+                    originalText: `【抓取失败】${error.message}`,
+                    translation: `❌ 提取此链接失败：${error.message}。\n(可能是由于账号设为私密，或 Instagram 云端防火墙波动拦截，请稍后再试)`,
+                    authorName: "Unknown",
+                    authorHandle: "@unknown",
+                    avatarBase64: null,
+                    imagesBase64: [],
+                    rawMediaUrls: [],
+                    quoteInfo: null,
+                    isReply: false,
+                    parentInfo: null,
+                    timestamp: Date.now(),
+                    viewsCount: 0,
+                    isPost: platform === 'IG',
+                    isStory: false
+                };
+            }
         };
 
         const results = await Promise.all(urls.slice(0, 8).map(processSingleUrl));
