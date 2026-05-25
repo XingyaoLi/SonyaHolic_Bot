@@ -8,7 +8,14 @@ export const config = {
 async function fetchImageAsBase64(url) {
     if (!url) return null;
     try {
-        const response = await fetch(url);
+        // 添加仿真 UA 头，防止图片 CDN 拒绝云端 IP 访问
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            }
+        });
+        if (!response.ok) return null;
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const mimeType = response.headers.get('content-type') || 'image/jpeg';
@@ -106,10 +113,22 @@ export default async function handler(req, res) {
                     originalText = originalText.replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim();
                 }
                 
+                // 核心黑科技：提取 Twitter 终极无损原图 (orig)
                 for (const media of (tweetData.media_extended || [])) {
-                    rawUrls.push({ type: media.type, url: media.url, thumbnail: media.thumbnail_url });
+                    let highResUrl = media.url;
+                    let thumbnailUrl = media.thumbnail_url || media.url;
+
+                    if (media.type === 'image' && highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                        // 剔除现有的格式后缀，强行挂载 name=orig 原图参数
+                        const extMatch = highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i);
+                        const ext = extMatch[2];
+                        highResUrl = highResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                        thumbnailUrl = highResUrl;
+                    }
+
+                    rawUrls.push({ type: media.type, url: highResUrl, thumbnail: thumbnailUrl });
                     if (options.needScreenshot || options.needTranslation) {
-                        const previewUrl = media.type === 'image' ? media.url : media.thumbnail_url;
+                        const previewUrl = media.type === 'image' ? highResUrl : thumbnailUrl;
                         const b64 = await fetchImageAsBase64(previewUrl);
                         if (b64) b64s.push(b64);
                     }
@@ -128,10 +147,18 @@ export default async function handler(req, res) {
                             let pB64s = [];
                             let pRaws = [];
                             for (const media of (pData.media_extended || [])) {
-                                pRaws.push({ type: media.type, url: media.url, thumbnail: media.thumbnail_url });
+                                let pHighResUrl = media.url;
+                                let pThumbUrl = media.thumbnail_url || media.url;
+
+                                if (media.type === 'image' && pHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                                    const ext = pHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
+                                    pHighResUrl = pHighResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                                    pThumbUrl = pHighResUrl;
+                                }
+
+                                pRaws.push({ type: media.type, url: pHighResUrl, thumbnail: pThumbUrl });
                                 if (options.needScreenshot) {
-                                    const previewUrl = media.type === 'image' ? media.url : media.thumbnail_url;
-                                    const b64 = await fetchImageAsBase64(previewUrl);
+                                    const b64 = await fetchImageAsBase64(media.type === 'image' ? pHighResUrl : pThumbUrl);
                                     if (b64) pB64s.push(b64);
                                 }
                             }
@@ -157,10 +184,18 @@ export default async function handler(req, res) {
                             let qB64s = [];
                             let qRaws = [];
                             for (const media of (qrtData.media_extended || [])) {
-                                qRaws.push({ type: media.type, url: media.url, thumbnail: media.thumbnail_url });
+                                let qHighResUrl = media.url;
+                                let qThumbUrl = media.thumbnail_url || media.url;
+
+                                if (media.type === 'image' && qHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                                    const ext = qHighResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
+                                    qHighResUrl = qHighResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                                    qThumbUrl = qHighResUrl;
+                                }
+
+                                qRaws.push({ type: media.type, url: qHighResUrl, thumbnail: qThumbUrl });
                                 if (options.needScreenshot) {
-                                    const previewUrl = media.type === 'image' ? media.url : media.thumbnail_url;
-                                    const b64 = await fetchImageAsBase64(previewUrl);
+                                    const b64 = await fetchImageAsBase64(media.type === 'image' ? qHighResUrl : qThumbUrl);
                                     if (b64) qB64s.push(b64);
                                 }
                             }
@@ -179,56 +214,90 @@ export default async function handler(req, res) {
                 if (!originalText || originalText.trim() === '') originalText = "[仅图片/视频，无文字]";
 
             } else if (platform === 'IG') {
-                // IG 模式专属提取引擎 (通过免登录代理获取元数据)
                 isStory = link.includes('/stories/');
                 isPost = link.includes('/p/') || link.includes('/reel/');
 
-                const ddUrl = link.replace(/(https?:\/\/)?(www\.)?instagram\.com/, 'https://ddinstagram.com');
-                const res = await fetch(ddUrl);
-                const html = await res.text();
+                let apiData = null;
 
-                // 提取作者
-                const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
-                if (titleMatch) {
-                    const handleMatch = titleMatch[1].match(/@([a-zA-Z0-9_.]+)/);
-                    if (handleMatch) authorHandle = `@${handleMatch[1]}`;
-                    else authorHandle = `@${titleMatch[1].split(' ')[0]}`;
-                    authorName = authorHandle.replace('@', '');
+                // 通道 1: 高稳定性的免登录 API (突破 Cloudflare 防护，直取最高画质)
+                try {
+                    const apiUrl = `https://api.social-downloader.com/api/instagram/get?url=${encodeURIComponent(link)}`;
+                    const apiRes = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }});
+                    if (apiRes.ok) {
+                        const data = await apiRes.json();
+                        if (data && (data.media || data.media_list)) {
+                            apiData = data;
+                        }
+                    }
+                } catch(e) {}
+
+                if (apiData) {
+                    authorHandle = `@${apiData.owner?.username || 'unknown'}`;
+                    authorName = apiData.owner?.full_name || authorHandle.replace('@', '');
+                    originalText = apiData.caption || "";
+                    
+                    const mediaItems = apiData.media_list || [apiData.media];
+                    for (const item of mediaItems) {
+                        if(!item) continue;
+                        let highResUrl = item.url;
+                        let thumbUrl = item.thumbnail || item.url;
+                        let mType = item.type || (item.url.includes('.mp4') ? 'video' : 'image');
+                        
+                        rawUrls.push({ type: mType, url: highResUrl, thumbnail: thumbUrl });
+                        if (options.needTranslation && b64s.length < 2) {
+                            const b64 = await fetchImageAsBase64(mType === 'image' ? highResUrl : thumbUrl);
+                            if (b64) b64s.push(b64);
+                        }
+                    }
                 } else {
-                    const urlHandleMatch = link.match(/instagram\.com\/([a-zA-Z0-9_.]+)/);
-                    if (urlHandleMatch && !['p','reel','stories'].includes(urlHandleMatch[1])) {
-                        authorHandle = `@${urlHandleMatch[1]}`;
-                    } else if (isStory) {
-                        const storyMatch = link.match(/stories\/([a-zA-Z0-9_.]+)/);
-                        if (storyMatch) authorHandle = `@${storyMatch[1]}`;
-                    }
-                    authorName = authorHandle.replace('@', '');
-                }
+                    // 通道 2: 伪装版 ddinstagram (备用防线)
+                    const ddUrl = link.replace(/(https?:\/\/)?(www\.)?instagram\.com/, 'https://ddinstagram.com');
+                    const res = await fetch(ddUrl, { 
+                        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
+                    });
+                    if (!res.ok) throw new Error('IG 代理节点被限流，请稍后重试');
+                    const html = await res.text();
 
-                // 提取文案
-                const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
-                if (descMatch) {
-                    originalText = descMatch[1].replace(/\\n/g, '\n').trim();
-                    if (originalText.includes('likes,') && originalText.includes('comments')) {
-                        originalText = originalText.split('-').slice(1).join('-').trim(); // 清洗掉前缀的点赞数据
+                    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+                    if (titleMatch) {
+                        const handleMatch = titleMatch[1].match(/@([a-zA-Z0-9_.]+)/);
+                        if (handleMatch) authorHandle = `@${handleMatch[1]}`;
+                        else authorHandle = `@${titleMatch[1].split(' ')[0]}`;
+                        authorName = authorHandle.replace('@', '');
+                    } else {
+                        const urlHandleMatch = link.match(/instagram\.com\/([a-zA-Z0-9_.]+)/);
+                        if (urlHandleMatch && !['p','reel','stories'].includes(urlHandleMatch[1])) {
+                            authorHandle = `@${urlHandleMatch[1]}`;
+                        } else if (isStory) {
+                            const storyMatch = link.match(/stories\/([a-zA-Z0-9_.]+)/);
+                            if (storyMatch) authorHandle = `@${storyMatch[1]}`;
+                        }
+                        authorName = authorHandle.replace('@', '');
                     }
-                }
 
-                // 提取媒体
-                const videoMatch = html.match(/<meta property="og:video" content="([^"]+)"/);
-                const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-                
-                if (videoMatch) {
-                    rawUrls.push({ type: 'video', url: videoMatch[1], thumbnail: imageMatch ? imageMatch[1] : '' });
-                    if (options.needTranslation && imageMatch) {
-                        const b64 = await fetchImageAsBase64(imageMatch[1]);
-                        if (b64) b64s.push(b64);
+                    const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
+                    if (descMatch) {
+                        originalText = descMatch[1].replace(/\\n/g, '\n').trim();
+                        if (originalText.includes('likes,') && originalText.includes('comments')) {
+                            originalText = originalText.split('-').slice(1).join('-').trim();
+                        }
                     }
-                } else if (imageMatch) {
-                    rawUrls.push({ type: 'image', url: imageMatch[1], thumbnail: imageMatch[1] });
-                    if (options.needTranslation) {
-                        const b64 = await fetchImageAsBase64(imageMatch[1]);
-                        if (b64) b64s.push(b64);
+
+                    const videoMatch = html.match(/<meta property="og:video" content="([^"]+)"/);
+                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+                    
+                    if (videoMatch) {
+                        rawUrls.push({ type: 'video', url: videoMatch[1], thumbnail: imageMatch ? imageMatch[1] : '' });
+                        if (options.needTranslation && imageMatch) {
+                            const b64 = await fetchImageAsBase64(imageMatch[1]);
+                            if (b64) b64s.push(b64);
+                        }
+                    } else if (imageMatch) {
+                        rawUrls.push({ type: 'image', url: imageMatch[1], thumbnail: imageMatch[1] });
+                        if (options.needTranslation) {
+                            const b64 = await fetchImageAsBase64(imageMatch[1]);
+                            if (b64) b64s.push(b64);
+                        }
                     }
                 }
             }
@@ -250,7 +319,6 @@ export default async function handler(req, res) {
                     }
                     parts = [{ text: prompt }];
                 } else {
-                    // IG 模式：针对快拍且无文字的情况启用 OCR
                     if (isStory && (!originalText || originalText.trim() === '') && b64s.length > 0) {
                         prompt = `这是一张Instagram快拍的截图/封面。请提取图片中出现的文字并进行翻译。\n如果图片中没有任何有效文字，请直接回复“[图片无文字]”。\n\n${igBaseRule}`;
                         parts = [
