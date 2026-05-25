@@ -61,46 +61,99 @@ export default async function handler(req, res) {
                     const tweetData = await vxRes.json();
 
                     let originalText = (tweetData.text || '').replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim() || "[仅图片/视频]";
-                    let rawUrls = [];
-                    let b64s = [];
+                    
+                    // --- 封装提取高清原图和 Base64 的并发逻辑 ---
+                    const extractMediaParams = async (mediaArray) => {
+                        let rawUrls = [];
+                        let b64s = [];
+                        const mediaPromises = (mediaArray || []).map(async (media) => {
+                            let highResUrl = media.url;
+                            let thumbnailUrl = media.thumbnail_url || media.url;
 
-                    // 核心提速与画质优化：并行处理所有的媒体拉取任务，消除超时报错
-                    const mediaPromises = (tweetData.media_extended || []).map(async (media) => {
-                        let highResUrl = media.url;
-                        let thumbnailUrl = media.thumbnail_url || media.url;
-
-                        // 强行挂上 orig 参数获取 X 的极限原图画质
-                        if (media.type === 'image' && highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
-                            const ext = highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
-                            highResUrl = highResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
-                            thumbnailUrl = highResUrl;
-                        } else if (media.type === 'video' && thumbnailUrl.match(/twimg\.com\/.*\.([a-z]+)/i)) {
-                            // 若为视频，尝试将视频的封面图也提取为高清，视频本体保持 vx API 提供的最高 MP4 流
-                            const ext = thumbnailUrl.match(/twimg\.com\/.*\.([a-z]+)/i)[1];
-                            if (ext === 'jpg' || ext === 'png') {
-                                thumbnailUrl = thumbnailUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                            // 强行挂上 orig 参数获取 X 的极限原图画质
+                            if (media.type === 'image' && highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)) {
+                                const ext = highResUrl.match(/twimg\.com\/media\/([^.]+)\.([a-z]+)/i)[2];
+                                highResUrl = highResUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                                thumbnailUrl = highResUrl;
+                            } else if (media.type === 'video' && thumbnailUrl.match(/twimg\.com\/.*\.([a-z]+)/i)) {
+                                const ext = thumbnailUrl.match(/twimg\.com\/.*\.([a-z]+)/i)[1];
+                                if (ext === 'jpg' || ext === 'png') {
+                                    thumbnailUrl = thumbnailUrl.replace(/\.[a-z]+(\?.*)?$/i, '') + `?format=${ext}&name=orig`;
+                                }
                             }
+
+                            let b64 = null;
+                            if (options.needScreenshot) {
+                                const previewUrl = media.type === 'image' ? highResUrl : thumbnailUrl;
+                                b64 = await fetchImageAsBase64(previewUrl);
+                            }
+                            return { rawUrl: { type: media.type, url: highResUrl, thumbnail: thumbnailUrl }, b64: b64 };
+                        });
+
+                        const mediaResults = await Promise.all(mediaPromises);
+                        for (const res of mediaResults) {
+                            rawUrls.push(res.rawUrl);
+                            if (res.b64) b64s.push(res.b64);
                         }
+                        return { rawUrls, b64s };
+                    };
 
-                        let b64 = null;
-                        if (options.needScreenshot) {
-                            const previewUrl = media.type === 'image' ? highResUrl : thumbnailUrl;
-                            b64 = await fetchImageAsBase64(previewUrl);
-                        }
+                    // 1. 提取当前主推文的多媒体
+                    const mainMedia = await extractMediaParams(tweetData.media_extended);
+                    
+                    // 2. 检查是否为回复（Reply）并抓取原贴
+                    let isReply = false;
+                    let parentInfo = null;
+                    const parentId = (tweetData.conversationID && tweetData.conversationID !== tweetId) ? tweetData.conversationID : null;
 
-                        return {
-                            rawUrl: { type: media.type, url: highResUrl, thumbnail: thumbnailUrl },
-                            b64: b64
-                        };
-                    });
-
-                    // 统一等待所有图片下载完毕
-                    const mediaResults = await Promise.all(mediaPromises);
-                    for (const res of mediaResults) {
-                        rawUrls.push(res.rawUrl);
-                        if (res.b64) b64s.push(res.b64);
+                    if (parentId) {
+                        try {
+                            const parentRes = await fetchWithTimeout(`https://api.vxtwitter.com/Twitter/status/${parentId}`, {}, 10000);
+                            if (parentRes.ok) {
+                                const pData = await parentRes.json();
+                                isReply = true;
+                                let pText = (pData.text || '').replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim() || "[仅图片/视频]";
+                                const pMedia = await extractMediaParams(pData.media_extended);
+                                
+                                parentInfo = {
+                                    name: pData.user_name,
+                                    handle: `@${pData.user_screen_name}`,
+                                    avatarBase64: options.needScreenshot ? await fetchImageAsBase64(pData.user_profile_image_url) : null,
+                                    text: pText,
+                                    imagesBase64: pMedia.b64s,
+                                    rawMediaUrls: pMedia.rawUrls
+                                };
+                            }
+                        } catch (e) {}
                     }
 
+                    // 3. 检查是否为引用转发（Quote）并抓取被引用的原贴
+                    let quoteInfo = null;
+                    if (!isReply && tweetData.qrtURL) {
+                        try {
+                            const qrtId = tweetData.qrtURL.split('/').pop();
+                            const qrtRes = await fetchWithTimeout(`https://api.vxtwitter.com/Twitter/status/${qrtId}`, {}, 10000);
+                            if (qrtRes.ok) {
+                                const qrtData = await qrtRes.json();
+                                let qText = (qrtData.text || '').replace(/^(@[a-zA-Z0-9_]+\s*)+/g, '').trim() || "[仅图片/视频]";
+                                const qMedia = await extractMediaParams(qrtData.media_extended);
+
+                                quoteInfo = {
+                                    name: qrtData.user_name,
+                                    handle: `@${qrtData.user_screen_name}`,
+                                    avatar: options.needScreenshot ? await fetchImageAsBase64(qrtData.user_profile_image_url) : null,
+                                    text: qText,
+                                    imagesBase64: qMedia.b64s,
+                                    rawMediaUrls: qMedia.rawUrls
+                                };
+                            }
+                        } catch (e) {}
+                    }
+
+                    // 4. 提取主作者的头像
+                    const avatarBase64 = options.needScreenshot ? await fetchImageAsBase64(tweetData.user_profile_image_url) : null;
+
+                    // 5. 组装翻译 Prompt 并调用 AI
                     let translatedResult = '';
                     if (options.needTranslation && process.env.GEMINI_API_KEY) {
                         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -122,19 +175,33 @@ export default async function handler(req, res) {
 6. 最终输出只需保留翻译后的中文正文以及原有的表情符号。绝不要输出任何解释说明。
 7. 必须强行按照要求的排版格式输出。`;
 
-                        const prompt = `请翻译这段推文：${xBaseRule}\n推文：\n"${originalText}"`;
+                        let prompt = "";
+                        if (isReply && parentInfo) {
+                            prompt = `请翻译这段对话：${xBaseRule}\n要求排版：\n💬：[原贴译文]\n\n🐰：[回复译文]\n原贴内容：\n"${parentInfo.text}"\n回复内容：\n"${originalText}"`;
+                        } else if (quoteInfo) {
+                            prompt = `请翻译这段推文：${xBaseRule}\n要求排版：主推文译文在前，空一行，引用部分加前缀“转发内容：”。\n主推文：\n"${originalText}"\n引用推文：\n"${quoteInfo.text}"`;
+                        } else {
+                            prompt = `请翻译这段推文：${xBaseRule}\n推文：\n"${originalText}"`;
+                        }
+
                         const result = await model.generateContent(prompt);
                         translatedResult = result.response.text().trim();
                     }
 
+                    // 6. 返回前端所需的所有字段
                     return { 
                         originalText, 
                         translation: translatedResult, 
                         authorName: tweetData.user_name, 
                         authorHandle: `@${tweetData.user_screen_name}`, 
-                        imagesBase64: b64s, 
-                        rawMediaUrls: rawUrls, 
-                        timestamp: tweetData.date_epoch * 1000 
+                        avatarBase64: avatarBase64,
+                        imagesBase64: mainMedia.b64s, 
+                        rawMediaUrls: mainMedia.rawUrls,
+                        quoteInfo: quoteInfo,
+                        isReply: isReply,
+                        parentInfo: parentInfo,
+                        timestamp: tweetData.date_epoch * 1000,
+                        viewsCount: tweetData.views || tweetData.likes || 0
                     };
                 } catch (e) {
                     retries--;
@@ -144,9 +211,14 @@ export default async function handler(req, res) {
                             translation: `❌ 提取此链接失败：${e.message}`, 
                             authorName: 'Unknown', 
                             authorHandle: '@unknown', 
+                            avatarBase64: null,
                             imagesBase64: [], 
                             rawMediaUrls: [], 
-                            timestamp: Date.now() 
+                            quoteInfo: null,
+                            isReply: false,
+                            parentInfo: null,
+                            timestamp: Date.now(),
+                            viewsCount: 0
                         };
                     }
                     await new Promise(r => setTimeout(r, 1500));
